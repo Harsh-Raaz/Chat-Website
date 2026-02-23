@@ -18,6 +18,7 @@ export const register=async(req,res)=>{
         if(existingUser){
             return res.json({success:false,message:"user already exists"});
         }
+        const profilePic=req.file?req.file.path:"/default.jpg";
         const hashedPassword = await bcrypt.hash(password,10);
         const user=new userModel({name,email,password:hashedPassword});
         await user.save();
@@ -54,3 +55,18 @@ export const logout=async(req,res)=>{
     res.clearCookie("token",cookieConfig);
     return res.json({success:true,message:"logout done"});
 }
+export const updateAvatar=async(req,res)=>{
+   try{
+     if(!req.file){
+        return res.json({success:"false",message:"avatar not uploaded"});
+    }
+    const updatedUser = await userModel.findByIdAndUpdate(
+  req.user.id,
+  { profilePic },
+  { returnDocument: "after" }
+).select("-password");
+    return res.json({success:"true",message:UpdatedUser});
+   }catch(err){
+    return res.json({success:"false",message:err.message});
+   }
+};
