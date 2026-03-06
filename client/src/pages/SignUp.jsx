@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { MessageCircle, User, Mail, Lock, EyeClosed, Eye } from "lucide-react";
+import { MessageCircle, User, Mail, Lock, EyeClosed, Eye, Loader2 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from "../store/authStore";
 
 const SignUp = () => {
 
@@ -11,6 +12,7 @@ const SignUp = () => {
     const [avatar, setAvatar] = useState(null)
 
     const Navigate = useNavigate()
+    const { signUp, loading, error } = useAuthStore();
 
     const handleAvatarChange = (e) => {
         const file = e.target.files[0]
@@ -26,9 +28,15 @@ const SignUp = () => {
         formData.append("name", name);
         formData.append("email", email);
         formData.append("password", password);
-        formData.append("avatar", avatar);
+        if (avatar) {
+            formData.append("avatar", avatar);
+        };
 
-        // Axios
+        const success = await signUp(formData);
+
+        if (success) {
+            Navigate("/chat");
+        }
 
     }
 
@@ -36,10 +44,8 @@ const SignUp = () => {
         <div className="min-h-screen w-full bg-linear-to-br from-indigo-100 via-purple-200 to-pink-200 flex items-center justify-center"
         >
 
-            {/* Center Div */}
             <div className="flex items-center justify-center flex-col gap-4 p-8 max-w-132 w-full">
 
-                {/* Upper Div */}
                 <div className="flex flex-col gap-2 items-center">
                     <div className="bg-linear-to-br from-purple-600 to-pink-500 rounded-3xl px-6 py-6 w-min mb-2">
                         <MessageCircle className="text-white" />
@@ -52,12 +58,9 @@ const SignUp = () => {
                     </p>
                 </div>
 
-                {/* Card */}
                 <div className="flex flex-col items-center justify-center rounded-2xl bg-white shadow-xl p-6 gap-6 w-full">
 
-                    {/* Profile */}
                     <div className="flex flex-col items-center justify-center gap-3">
-                        {/* Gradient Border */}
                         <div className="p-0.5 rounded-full bg-linear-to-br from-purple-500 via-pink-500 to-indigo-500">
                             <label
                                 htmlFor="avatar"
@@ -87,7 +90,6 @@ const SignUp = () => {
                     </div>
 
 
-                    {/* User details */}
                     <div className="flex flex-col w-full gap-2">
                         <label className="text-sm font-poppins font-medium text-gray-700">
                             Full Name
@@ -134,12 +136,24 @@ const SignUp = () => {
                         </div>
                     </div>
 
-                    {/* Button */}
-                    <button className="w-full  bg-linear-to-r from-purple-600 to-pink-500 text-white py-2.5 rounded-2xl font-semibold hover:opacity-90 transition-all cursor-pointer">
-                        Create Account
+                    {error && (
+                        <p className="text-red-500 text-sm text-center">
+                            {error}
+                        </p>
+                    )}
+
+                    <button
+                        onClick={handleSubmit}
+                        disabled={loading}
+                        className="flex items-center justify-center gap-4 w-full bg-linear-to-r from-purple-600 to-pink-500 text-white py-2.5 rounded-2xl font-semibold hover:opacity-90 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        {loading && (
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                        )}
+                        {loading ? "Creating Account..." : "Create Account"}
                     </button>
 
-                    {/* Footer */}
+
                     <p className="text-sm text-gray-600">
                         Already have an account?{" "}
                         <span onClick={() => Navigate("/login")} className="text-purple-600  font-semibold cursor-pointer">

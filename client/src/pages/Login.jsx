@@ -1,22 +1,37 @@
 import { useState } from "react";
-import { MessageCircle, User, Mail, Lock, EyeClosed, Eye } from "lucide-react";
+import { MessageCircle, User, Mail, Lock, EyeClosed, Eye, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../store/authStore";
+
 
 const Login = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [formError, setFormError] = useState("")
 
     const navigate = useNavigate();
+    const { login, loading, error } = useAuthStore();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!email.trim() || !password.trim()) {
+            setFormError("Please fill in both email and password.");
+            return;
+        }
+
+        setFormError("");
 
         const formData = new FormData();
         formData.append("email", email);
         formData.append("password", password);
 
-        // axios / fetch login call here
+        const success = await login(formData);
+
+        if (success) {
+            navigate("/chat");
+        }
     };
 
     return (
@@ -90,12 +105,29 @@ const Login = () => {
                         </div>
                     </div>
 
+                    {formError && (
+                        <p className="text-red-500 text-sm text-center">
+                            {formError}
+                        </p>
+                    )}
+
+
+                    {error && (
+                        <p className="text-red-500 text-sm text-center">
+                            {error}
+                        </p>
+                    )}
+
                     {/* Button */}
                     <button
                         type="submit"
-                        className="w-full bg-linear-to-r from-purple-600 to-pink-500 text-white py-2.5 rounded-2xl font-semibold hover:opacity-90 transition-all cursor-pointer"
+                        disabled={loading}
+                        className="flex items-center justify-center gap-4 w-full bg-linear-to-r from-purple-600 to-pink-500 text-white py-2.5 rounded-2xl font-semibold hover:opacity-90 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                        Login
+                        {loading && (
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                        )}
+                        {loading ? "Logging in..." : "Login"}
                     </button>
 
                     {/* Footer */}
