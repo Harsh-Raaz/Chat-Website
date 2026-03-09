@@ -20,7 +20,7 @@ export const register=async(req,res)=>{
         }
         const profilePic=req.file?req.file.path:"/default.jpg";
         const hashedPassword = await bcrypt.hash(password,10);
-        const user=new userModel({name,email,password:hashedPassword});
+        const user=new userModel({name,email,password:hashedPassword,profilePic});
         await user.save();
         const token = jwt.sign({id:user._id},process.env.JWT_SECRET,{expiresIn:"7d",});
         res.cookie("token",token,cookieConfig);

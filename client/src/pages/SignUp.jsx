@@ -10,9 +10,63 @@ const SignUp = () => {
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [avatar, setAvatar] = useState(null)
+    const [formError, setFormError] = useState("");
 
     const Navigate = useNavigate()
     const { signUp, loading, error } = useAuthStore();
+
+    const validateForm = () => {
+
+        if (!name.trim()) {
+            return "Full name is required";
+        }
+
+        if (name.length < 3) {
+            return "Name must be at least 3 characters";
+        }
+
+        if (!email.trim()) {
+            return "Email is required";
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailRegex.test(email)) {
+            return "Please enter a valid email address (example@mail.com)";
+        }
+
+        if (!password) {
+            return "Password is required";
+        }
+
+        if (password.length < 6) {
+            return "Password must be at least 6 characters";
+        }
+
+        if (!/[A-Z]/.test(password)) {
+            return "Password must contain at least one uppercase letter";
+        }
+
+        if (!/[0-9]/.test(password)) {
+            return "Password must contain at least one number";
+        }
+
+        if (avatar) {
+            const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+
+            if (!allowedTypes.includes(avatar.type)) {
+                return "Avatar must be JPG, PNG, or WEBP";
+            }
+
+            const maxSize = 5 * 1024 * 1024;
+
+            if (avatar.size > maxSize) {
+                return "Avatar must be less than 2MB";
+            }
+        }
+
+        return null;
+    };
 
     const handleAvatarChange = (e) => {
         const file = e.target.files[0]
@@ -22,23 +76,32 @@ const SignUp = () => {
     }
 
     const handleSubmit = async (e) => {
-        e.preventDefault()
+        e.preventDefault();
+
+        const validationError = validateForm();
+
+        if (validationError) {
+            setFormError(validationError);
+            return;
+        }
+
+        setFormError("");
 
         const formData = new FormData();
         formData.append("name", name);
         formData.append("email", email);
         formData.append("password", password);
+
         if (avatar) {
             formData.append("avatar", avatar);
-        };
+        }
 
         const success = await signUp(formData);
 
         if (success) {
             Navigate("/chat");
         }
-
-    }
+    };
 
     return (
         <div className="min-h-screen w-full bg-linear-to-br from-indigo-100 via-purple-200 to-pink-200 flex items-center justify-center"
@@ -111,7 +174,10 @@ const SignUp = () => {
                         <div className="relative">
                             <input
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={(e) => {
+                                    setEmail(e.target.value);
+                                    setFormError("");
+                                }}
                                 type="email"
                                 placeholder="Enter your email"
                                 className="w-full rounded-lg border border-gray-300 pl-10 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-300 transition-all"
@@ -125,7 +191,10 @@ const SignUp = () => {
                         <div className="relative">
                             <input
                                 value={password}
-                                onChange={(e) => setPassword(e.target.value)}
+                                onChange={(e) => {
+                                    setPassword(e.target.value);
+                                    setFormError("");
+                                }}
                                 type={showPassword ? "text" : "password"}
                                 placeholder="Create a strong password"
                                 className="w-full rounded-lg border border-gray-300 pl-10 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-300 transition-all"
@@ -136,7 +205,13 @@ const SignUp = () => {
                         </div>
                     </div>
 
-                    {error && (
+                    {formError && (
+                        <p className="text-red-500 text-sm text-center">
+                            {formError}
+                        </p>
+                    )}
+
+                    {!formError && error && (
                         <p className="text-red-500 text-sm text-center">
                             {error}
                         </p>

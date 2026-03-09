@@ -13,21 +13,37 @@ const Login = () => {
     const navigate = useNavigate();
     const { login, loading, error } = useAuthStore();
 
+    const validateForm = () => {
+        if (!email.trim() || !password.trim()) {
+            return "Please fill all fields";
+        }
+
+        const emailRegex = /^\S+@\S+\.\S+$/;
+
+        if (!emailRegex.test(email)) {
+            return "Please enter a valid email";
+        }
+
+        if (password.length < 6) {
+            return "Password must be at least 6 characters";
+        }
+
+        return null;
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!email.trim() || !password.trim()) {
-            setFormError("Please fill in both email and password.");
+        const validationError = validateForm();
+
+        if (validationError) {
+            setFormError(validationError);
             return;
         }
 
         setFormError("");
 
-        const formData = new FormData();
-        formData.append("email", email);
-        formData.append("password", password);
-
-        const success = await login(formData);
+        const success = await login({ email, password });
 
         if (success) {
             navigate("/chat");
@@ -69,7 +85,10 @@ const Login = () => {
                         <div className="relative">
                             <input
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={(e) => {
+                                    setEmail(e.target.value);
+                                    setFormError("");
+                                }}
                                 type="email"
                                 placeholder="Enter your email"
                                 className="w-full rounded-lg border border-gray-300 pl-10 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-300 transition-all"
@@ -83,7 +102,11 @@ const Login = () => {
                         <div className="relative">
                             <input
                                 value={password}
-                                onChange={(e) => setPassword(e.target.value)}
+                                onChange={(e) => {
+                                    setPassword(e.target.value)
+                                    setFormError("")
+                                }
+                                }
                                 type={showPassword ? "text" : "password"}
                                 placeholder="Enter your password"
                                 className="w-full rounded-lg border border-gray-300 pl-10 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-300 transition-all"
@@ -111,8 +134,7 @@ const Login = () => {
                         </p>
                     )}
 
-
-                    {error && (
+                    {!formError && error && (
                         <p className="text-red-500 text-sm text-center">
                             {error}
                         </p>

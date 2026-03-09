@@ -6,6 +6,6 @@ const authrouter=express.Router();
 
 authrouter.post("/login",login);
 authrouter.post("/logout",logout);
-authrouter.post("/register",authMiddleware,upload.single("avatar"),register);
+authrouter.post("/register",upload.single("avatar"),register);
 authrouter.patch("/update-avatar",authMiddleware,upload.single("avatar"),updateAvatar);
 export default authrouter;

@@ -9,3 +9,5 @@ client/node_modules/
 
 # Environment files
 .env
+
+uploads/

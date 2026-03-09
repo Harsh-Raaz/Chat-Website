@@ -25,21 +25,39 @@ export const useAuthStore = create((set) => ({
         }
     },
 
-    login: async (formdata) => {
+    login: async ({ email, password }) => {
         try {
             set({ loading: true, error: null });
 
-            const { data } = await axios.post("/login", formdata)
-            set({ user: data.user, loading: false, error: data.message });
-            return true
+            const { data } = await axios.post("/login", { email, password });
+
+            if (!data.success) {
+                set({ loading: false, error: data.message });
+                return false;
+            }
+
+            set({
+                user: data.user,
+                loading: false,
+                error: null
+            });
+
+            return true;
+
         } catch (err) {
+            const message =
+                err.response?.data?.message ||
+                err.message ||
+                "Server error. Please try again.";
+
             set({
                 loading: false,
-                error: err.response?.data?.message || "Something went wrong",
+                error: message
             });
-            return false
+
+            return false;
         }
-    },
+    }
 
 
 }))
