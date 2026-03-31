@@ -129,15 +129,45 @@ const Login = () => {
                     </div>
 
                     {formError && (
-                        <p className="text-red-500 text-sm text-center">
-                            {formError}
-                        </p>
+                        <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100">
+                                <svg
+                                    className="h-3 w-3 text-red-600"
+                                    viewBox="0 0 12 12"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                >
+                                    <path
+                                        d="M6 1L6 7M6 9.5L6 10.5"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                            </div>
+                            <p className="text-sm leading-relaxed text-red-700 font-medium">{formError}</p>
+                        </div>
                     )}
 
                     {!formError && error && (
-                        <p className="text-red-500 text-sm text-center">
-                            {error}
-                        </p>
+                        <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100">
+                                <svg
+                                    className="h-3 w-3 text-red-600"
+                                    viewBox="0 0 12 12"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                >
+                                    <path
+                                        d="M6 1L6 7M6 9.5L6 10.5"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                            </div>
+                            <p className="text-sm leading-relaxed text-red-700 font-medium">{error}</p>
+                        </div>
                     )}
 
                     {/* Button */}

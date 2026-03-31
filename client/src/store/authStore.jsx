@@ -57,6 +57,38 @@ export const useAuthStore = create((set) => ({
 
             return false;
         }
+    },
+
+    checkAuth: async () => {
+        try {
+            set({ loading: true })
+            const { data } = await axios.get("/checkauth")
+            set({
+                user: data.user, loading: false, error: null
+            })
+            return true;
+        } catch (err) {
+            const message =
+                err.response?.data?.message ||
+                err.message ||
+                "Server error. Please try again.";
+
+            set({
+                loading: false,
+                error: message
+            });
+
+            return false;
+        }
+    },
+
+    logoutUser: async () => {
+        try {
+            await axios.post("/logout", {});
+            setUser(null); // reset Zustand store
+        } catch (err) {
+            console.log("Logout failed", err);
+        }
     }
 
 
