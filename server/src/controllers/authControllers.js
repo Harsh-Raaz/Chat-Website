@@ -1,4 +1,6 @@
 import userModel from "../models/user.js";
+import cloudinary from "../config/cloudinary.js";
+import streamifier from "streamifier";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
@@ -8,6 +10,18 @@ const cookieConfig={
     sameSite:process.env.NODE_ENV==="production"?"none":"lax",
     maxAge: 7*24*60*60*1000
 }
+const uploadToCloudinary = (fileBuffer) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: "avatars" },
+      (error, result) => {
+        if (result) resolve(result);
+        else reject(error);
+      }
+    );
+    streamifier.createReadStream(fileBuffer).pipe(stream);
+  });
+};
 export const register=async(req,res)=>{
     const {name,email,password}=req.body;
     if(!email|| !name|| !password){
@@ -18,7 +32,12 @@ export const register=async(req,res)=>{
         if(existingUser){
             return res.json({success:false,message:"user already exists"});
         }
-        const profilePic=req.file?req.file.path:"/default.jpg";
+        let profilePic = "";
+
+        if (req.file) {
+        const result = await uploadToCloudinary(req.file.buffer);
+        profilePic = result.secure_url;
+}
         const hashedPassword = await bcrypt.hash(password,10);
         const user=new userModel({name,email,password:hashedPassword,profilePic});
         await user.save();
@@ -55,18 +74,23 @@ export const logout=async(req,res)=>{
     res.clearCookie("token",cookieConfig);
     return res.json({success:true,message:"logout done"});
 }
-export const updateAvatar=async(req,res)=>{
-   try{
-     if(!req.file){
-        return res.json({success:"false",message:"avatar not uploaded"});
+export const updateAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.json({ success: false, message: "avatar not uploaded" });
     }
+
+    const result = await uploadToCloudinary(req.file.buffer);
+
     const updatedUser = await userModel.findByIdAndUpdate(
-  req.user.id,
-  { profilePic },
-  { returnDocument: "after" }
-).select("-password");
-    return res.json({success:"true",message:UpdatedUser});
-   }catch(err){
-    return res.json({success:"false",message:err.message});
-   }
+      req.user.id,
+      { profilePic: result.secure_url },
+      { new: true }
+    ).select("-password");
+
+    return res.json({ success: true, user: updatedUser });
+
+  } catch (err) {
+    return res.json({ success: false, message: err.message });
+  }
 };
