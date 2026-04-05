@@ -94,3 +94,29 @@ export const updateAvatar = async (req, res) => {
     return res.json({ success: false, message: err.message });
   }
 };
+export const checkAuth = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Not authorized",
+      });
+    }
+
+    return res.json({
+      success: true,
+      user: {
+        id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        profilePic: req.user.profilePic,
+      },
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
