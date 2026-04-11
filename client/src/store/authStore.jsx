@@ -8,6 +8,7 @@ export const useAuthStore = create((set) => ({
     user: null,
     loading: false,
     error: null,
+    checkingAuth: true,
 
     signUp: async (formdata) => {
         try {
@@ -61,31 +62,28 @@ export const useAuthStore = create((set) => ({
 
     checkAuth: async () => {
         try {
-            set({ loading: true })
-            const { data } = await axios.get("/checkauth")
-            set({
-                user: data.user, loading: false, error: null
-            })
-            return true;
-        } catch (err) {
-            const message =
-                err.response?.data?.message ||
-                err.message ||
-                "Server error. Please try again.";
+            set({ checkingAuth: true });
+            const { data } = await axios.get("/check");
 
             set({
-                loading: false,
-                error: message
+                user: data.user,
+                checkingAuth: false,
+                error: null
             });
 
-            return false;
+        } catch (err) {
+            set({
+                user: null,
+                checkingAuth: false,
+                error: null
+            });
         }
     },
 
     logoutUser: async () => {
         try {
             await axios.post("/logout", {});
-            setUser(null); // reset Zustand store
+            set({user:null}); // reset Zustand store
         } catch (err) {
             console.log("Logout failed", err);
         }

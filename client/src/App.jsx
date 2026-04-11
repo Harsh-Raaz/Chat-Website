@@ -14,14 +14,14 @@ function App() {
 
   useEffect(() => {
     checkAuth()
-  },[])
+  }, [])
 
   return (
     <>
       <Routes>
         <Route
           path="/chat"
-          element={<ProtectRoute><Chat/></ProtectRoute>}
+          element={<ProtectRoute><Chat /></ProtectRoute>}
         />
         <Route path='/' element={<SignUp></SignUp>} />
         <Route path="/login" element={<Login></Login>} />

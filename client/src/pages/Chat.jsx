@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import EmojiPicker from "emoji-picker-react";
 import { MessageCircle, Search, Ellipsis, Smile, Send } from 'lucide-react';
+import { socket } from '../socket/Socket';
 
 const contacts = [
   { id: 1, name: "Asta", role: "Anti-Magic", avatar: "https://i.pinimg.com/736x/e5/27/f2/e527f2e037e8eea589c1cb7cbc101803.jpg", online: true, unread: 3, last: "sent you a file ✦", time: "1h" },
@@ -15,7 +16,7 @@ const Chat = () => {
   const [message, setMessage] = useState("")
   const [showEmoji, setShowEmoji] = useState(false);
   const activeContact = contacts.find(c => c.id === active);
-  
+
 
   return (
     <div className="min-h-screen w-full bg-linear-to-br from-indigo-100 via-purple-200 to-pink-200 flex items-center justify-center p-4">
@@ -51,8 +52,8 @@ const Chat = () => {
                 key={user.id}
                 onClick={() => setActive(user.id)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer transition-all duration-200 ${active === user.id
-                    ? 'bg-white shadow-md'
-                    : 'hover:bg-white/50'
+                  ? 'bg-white shadow-md'
+                  : 'hover:bg-white/50'
                   }`}>
 
                 {/* Avatar + online dot */}
@@ -142,39 +143,39 @@ const Chat = () => {
 
           {/* Message Input */}
           <div className="px-5 py-4 border-t border-gray-100 bg-white">
-  <div className="flex items-center gap-3 bg-gray-100 rounded-2xl px-4 py-2.5 border border-gray-200">
+            <div className="flex items-center gap-3 bg-gray-100 rounded-2xl px-4 py-2.5 border border-gray-200">
 
-    <div className="relative">
-      <Smile
-        onClick={() => setShowEmoji(!showEmoji)}
-        className="cursor-pointer hover:scale-110 transition text-gray-400 w-5 h-5 shrink-0"
-      />
+              <div className="relative">
+                <Smile
+                  onClick={() => setShowEmoji(!showEmoji)}
+                  className="cursor-pointer hover:scale-110 transition text-gray-400 w-5 h-5 shrink-0"
+                />
 
-      {showEmoji && (
-        <div className="absolute bottom-12 left-0 z-50">
-          <EmojiPicker
-            onEmojiClick={(emojiData) =>
-              setMessage((prev) => prev + emojiData.emoji)
-            }
-          />
-        </div>
-      )}
-    </div>
+                {showEmoji && (
+                  <div className="absolute bottom-12 left-0 z-50">
+                    <EmojiPicker
+                      onEmojiClick={(emojiData) =>
+                        setMessage((prev) => prev + emojiData.emoji)
+                      }
+                    />
+                  </div>
+                )}
+              </div>
 
-    <input
-      type="text"
-      value={message}
-      onChange={(e) => setMessage(e.target.value)}
-      placeholder={`Message ${activeContact?.name}...`}
-      className="flex-1 bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400"
-    />
+              <input
+                type="text"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder={`Message ${activeContact?.name}...`}
+                className="flex-1 bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400"
+              />
 
-    <button className="bg-linear-to-r from-purple-500 to-pink-500 text-white p-2 rounded-xl hover:scale-105 hover:shadow-md transition-all cursor-pointer shrink-0">
-      <Send className="w-4 h-4" />
-    </button>
+              <button className="bg-linear-to-r from-purple-500 to-pink-500 text-white p-2 rounded-xl hover:scale-105 hover:shadow-md transition-all cursor-pointer shrink-0">
+                <Send className="w-4 h-4" />
+              </button>
 
-  </div>
-</div>
+            </div>
+          </div>
 
         </div>
       </div>
