@@ -33,17 +33,38 @@ export const register=async(req,res)=>{
             return res.json({success:false,message:"user already exists"});
         }
         let profilePic = "";
+        let profilePicturePublicId = "";
 
         if (req.file) {
         const result = await uploadToCloudinary(req.file.buffer);
         profilePic = result.secure_url;
+        profilePicturePublicId = result.public_id;
 }
         const hashedPassword = await bcrypt.hash(password,10);
-        const user=new userModel({name,email,password:hashedPassword,profilePic});
+        const user=new userModel({
+            name,
+            email,
+            password:hashedPassword,
+            profilePic,
+            profilePicture: profilePic,
+            profilePicturePublicId,
+        });
         await user.save();
         const token = jwt.sign({id:user._id},process.env.JWT_SECRET,{expiresIn:"7d",});
         res.cookie("token",token,cookieConfig);
-        return res.json({success:true,message:"successful",token,user:{id:user._id,name:user,email:user.email}});
+        return res.json({
+            success:true,
+            message:"successful",
+            token,
+            user:{
+                _id:user._id,
+                id:user._id,
+                name:user.name,
+                email:user.email,
+                profilePic:user.profilePic,
+                profilePicture:user.profilePicture || user.profilePic,
+            }
+        });
 
     }catch(error){
         return res.json({success:false,message:error.message});
@@ -65,7 +86,19 @@ export const login=async(req,res)=>{
         }
         const token = jwt.sign({id:existingUser._id},process.env.JWT_SECRET,{expiresIn:"7d"});
         res.cookie("token",token,cookieConfig);
-        return res.json({success:true,message:"login donee",token,user:{id:existingUser._id,name:existingUser.name,email:existingUser.email}});
+        return res.json({
+            success:true,
+            message:"login donee",
+            token,
+            user:{
+                _id:existingUser._id,
+                id:existingUser._id,
+                name:existingUser.name,
+                email:existingUser.email,
+                profilePic:existingUser.profilePic,
+                profilePicture:existingUser.profilePicture || existingUser.profilePic,
+            }
+        });
     }catch(error){
         return res.json({success:false,message:error.message});
     }
@@ -84,7 +117,11 @@ export const updateAvatar = async (req, res) => {
 
     const updatedUser = await userModel.findByIdAndUpdate(
       req.user.id,
-      { profilePic: result.secure_url },
+      {
+        profilePic: result.secure_url,
+        profilePicture: result.secure_url,
+        profilePicturePublicId: result.public_id,
+      },
       { new: true }
     ).select("-password");
 
@@ -105,11 +142,13 @@ export const checkAuth = async (req, res) => {
 
     return res.json({
       success: true,
-      user: {
+        user: {
+        _id: req.user._id,
         id: req.user._id,
         name: req.user.name,
         email: req.user.email,
         profilePic: req.user.profilePic,
+        profilePicture: req.user.profilePicture || req.user.profilePic,
       },
     });
 

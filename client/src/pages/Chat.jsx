@@ -1,186 +1,280 @@
-import React, { useState } from 'react'
-import EmojiPicker from "emoji-picker-react";
-import { MessageCircle, Search, Ellipsis, Smile, Send } from 'lucide-react';
-import { socket } from '../socket/Socket';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MessageCircle, User } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import ChatList from "../components/ChatList";
+import ChatWindow from "../components/ChatWindow";
+import UserSearch from "../components/UserSearch";
+import { getConversations, getMessageHistory, getUnreadCounts, getUserProfile } from "../services/api";
+import { useSocket } from "../hooks/useSocket";
+import { useAuthStore } from "../store/authStore";
 
-const contacts = [
-  { id: 1, name: "Asta", role: "Anti-Magic", avatar: "https://i.pinimg.com/736x/e5/27/f2/e527f2e037e8eea589c1cb7cbc101803.jpg", online: true, unread: 3, last: "sent you a file ✦", time: "1h" },
-  { id: 2, name: "Yuno", role: "Wind Magic", avatar: "https://avatarfiles.alphacoders.com/110/thumb-1920-110582.png", online: false, unread: 9, last: "sounds good ✦", time: "3d" },
-  { id: 3, name: "Eren Yeager", role: "Titan", avatar: "https://avatarfiles.alphacoders.com/352/352802.jpg", online: true, unread: 0, last: "It's your end ✦", time: "20m" },
-  { id: 4, name: "Spiderman", role: "SuperHero", avatar: "https://pbs.twimg.com/profile_images/1222646977332174849/xWcD6t_Q_400x400.jpg", online: true, unread: 4, last: "Coming..", time: "2m" },
-  { id: 5, name: "Monkey D. Luffy", role: "Pirate King", avatar: "https://avatarfiles.alphacoders.com/366/366278.jpg", online: true, unread: 0, last: "Need Food 🍖", time: "10m" },
-]
+const getUserId = (user) => (user?._id || user?.id || "").toString();
+
+const upsertConversation = (conversations, user, lastMessage = null) => {
+  const userId = getUserId(user);
+  const nextConversation = { user, lastMessage };
+  const existing = conversations.filter((conversation) => getUserId(conversation.user) !== userId);
+  return [nextConversation, ...existing];
+};
 
 const Chat = () => {
-  const [active, setActive] = useState(1);
-  const [message, setMessage] = useState("")
-  const [showEmoji, setShowEmoji] = useState(false);
-  const activeContact = contacts.find(c => c.id === active);
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const currentUserId = getUserId(user);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [unreadCounts, setUnreadCounts] = useState({});
+  const [totalUnread, setTotalUnread] = useState(0);
+  const [loadingConversations, setLoadingConversations] = useState(true);
+  const [historyError, setHistoryError] = useState("");
+  const latestMessageIdRef = useRef("");
 
+  const {
+    isConnected,
+    messages,
+    setMessages,
+    sendMessage,
+    markMessagesAsRead,
+    getUnreadCountsFromSocket,
+    socketErrors,
+    clearErrors,
+  } = useSocket();
+
+  const selectedUserId = getUserId(selectedUser);
+
+  useEffect(() => {
+    clearErrors();
+
+    const loadConversations = async () => {
+      try {
+        setLoadingConversations(true);
+        const data = await getConversations();
+        setConversations(data);
+        const counts = await getUnreadCounts();
+        setUnreadCounts(counts.unreadCounts);
+        setTotalUnread(counts.totalUnread);
+      } catch (error) {
+        setHistoryError(error.response?.data?.message || "Could not load conversations");
+      } finally {
+        setLoadingConversations(false);
+      }
+    };
+
+    loadConversations();
+  }, [clearErrors]);
+
+  useEffect(() => {
+    if (!isConnected) return;
+
+    getUnreadCountsFromSocket((response) => {
+      if (response?.status === "ok") {
+        setUnreadCounts(response.unreadCounts || {});
+        setTotalUnread(response.totalUnread || 0);
+      }
+    });
+  }, [getUnreadCountsFromSocket, isConnected]);
+
+  useEffect(() => {
+    if (!selectedUser) return;
+
+    const selectedUserId = getUserId(selectedUser);
+
+    const loadMessages = async () => {
+      try {
+        setHistoryError("");
+        const history = await getMessageHistory(selectedUserId);
+        setMessages((currentMessages) => {
+          const otherMessages = currentMessages.filter((message) => {
+            const from = message.from?.toString();
+            const to = message.to?.toString();
+            return !(
+              (from === currentUserId && to === selectedUserId) ||
+              (from === selectedUserId && to === currentUserId)
+            );
+          });
+
+          return [
+            ...otherMessages,
+            ...history.map((message) => ({
+              ...message,
+              id: message._id || message.id,
+              status: message.readStatus || "delivered",
+            })),
+          ];
+        });
+      } catch (error) {
+        setHistoryError(error.response?.data?.message || "Could not load messages");
+      }
+    };
+
+    loadMessages();
+  }, [currentUserId, selectedUser, setMessages]);
+
+  useEffect(() => {
+    if (!messages.length || !currentUserId) return;
+
+    const latestMessage = messages[messages.length - 1];
+    const from = latestMessage.from?.toString();
+    const to = latestMessage.to?.toString();
+    const otherUserId = from === currentUserId ? to : from;
+
+    if (!otherUserId) return;
+
+    setConversations((current) => {
+      const existing = current.find((conversation) => getUserId(conversation.user) === otherUserId);
+
+      if (!existing) {
+        getUserProfile(otherUserId)
+          .then((profile) => {
+            setConversations((latestConversations) =>
+              upsertConversation(latestConversations, profile, latestMessage)
+            );
+          })
+          .catch(() => {});
+        return current;
+      }
+
+      return upsertConversation(current, existing.user, latestMessage);
+    });
+
+    const latestId = latestMessage._id || latestMessage.id || latestMessage.tempId;
+    if (latestId && latestMessageIdRef.current !== latestId) {
+      latestMessageIdRef.current = latestId;
+      if (from !== currentUserId && from !== selectedUserId) {
+        setUnreadCounts((current) => {
+          const next = { ...current, [from]: (current[from] || 0) + 1 };
+          setTotalUnread(Object.values(next).reduce((sum, value) => sum + value, 0));
+          return next;
+        });
+      }
+    }
+  }, [currentUserId, messages, selectedUserId]);
+
+  const chatMessages = useMemo(() => {
+    if (!selectedUserId || !currentUserId) return [];
+
+    return messages.filter((message) => {
+      const from = message.from?.toString();
+      const to = message.to?.toString();
+      return (
+        (from === currentUserId && to === selectedUserId) ||
+        (from === selectedUserId && to === currentUserId)
+      );
+    });
+  }, [currentUserId, messages, selectedUserId]);
+
+  const clearUnreadForUser = useCallback((userId) => {
+    setUnreadCounts((current) => {
+      if (!current[userId]) return current;
+      const next = { ...current, [userId]: 0 };
+      setTotalUnread(Object.values(next).reduce((sum, value) => sum + value, 0));
+      return next;
+    });
+  }, []);
+
+  const handleSelectUser = (nextUser) => {
+    setSelectedUser(nextUser);
+    setConversations((current) => upsertConversation(current, nextUser));
+    clearUnreadForUser(getUserId(nextUser));
+  };
+
+  const handleSendMessage = (content) => {
+    if (!selectedUserId || !currentUserId) return;
+
+    sendMessage({
+      from: currentUserId,
+      to: selectedUserId,
+      content,
+    });
+
+    setConversations((current) =>
+      upsertConversation(current, selectedUser, {
+        from: currentUserId,
+        to: selectedUserId,
+        content,
+        timestamp: new Date().toISOString(),
+      })
+    );
+  };
+
+  const handleMarkMessagesAsRead = useCallback((messageIds, senderId) => {
+    clearUnreadForUser(senderId?.toString());
+    markMessagesAsRead(messageIds, senderId, (response) => {
+      if (response?.status === "ok") {
+        const ids = new Set(response.messageIds || messageIds);
+        setMessages((currentMessages) =>
+          currentMessages.map((msg) => {
+            const messageId = msg._id || msg.id;
+            return ids.has(messageId)
+              ? { ...msg, isRead: true, readStatus: "read", status: "read", readAt: response.readAt }
+              : msg;
+          })
+        );
+      }
+    });
+  }, [clearUnreadForUser, markMessagesAsRead, setMessages]);
 
   return (
     <div className="min-h-screen w-full bg-linear-to-br from-indigo-100 via-purple-200 to-pink-200 flex items-center justify-center p-4">
-      {/* Main div */}
       <div className="max-w-6xl w-full h-[85vh] rounded-3xl shadow-2xl bg-white flex overflow-hidden">
-
-        {/* Left section */}
         <div className="w-75 h-full bg-linear-to-b from-indigo-100 via-purple-100 to-pink-100 flex flex-col p-5">
-
-          {/* Header */}
           <div className="flex items-center justify-between pb-4 mb-4 border-b border-white/60">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-2xl bg-linear-to-r from-purple-500 to-pink-500 shadow-md">
                 <MessageCircle className="text-white w-4 h-4" />
               </div>
-              <h2 className="text-lg font-bold text-gray-800 tracking-tight">Messages</h2>
-            </div>
-            <button className="p-2 rounded-full hover:bg-white/60 transition-all duration-200 hover:scale-105">
-              <Search className="text-gray-600 w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Search bar */}
-          <div className="flex items-center gap-2 bg-white/50 rounded-2xl px-3 py-2 mb-4 border border-white/70">
-            <Search className="text-gray-400 w-3.5 h-3.5" />
-            <input placeholder="Search..." className="bg-transparent text-xs outline-none flex-1 text-gray-600 placeholder-gray-400" />
-          </div>
-
-          {/* Users List */}
-          <div className="flex-1 overflow-y-auto space-y-1 pr-1">
-            {contacts.map((user) => (
-              <div
-                key={user.id}
-                onClick={() => setActive(user.id)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl cursor-pointer transition-all duration-200 ${active === user.id
-                  ? 'bg-white shadow-md'
-                  : 'hover:bg-white/50'
-                  }`}>
-
-                {/* Avatar + online dot */}
-                <div className="relative shrink-0">
-                  <img className="rounded-xl w-10 h-10 object-cover object-top" src={user.avatar} alt={user.name} />
-                  {user.online && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-400 border-2 border-white" />
-                  )}
-                </div>
-
-                {/* Name + last msg */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h1 className="text-sm font-semibold text-gray-800 truncate">{user.name}</h1>
-                    <span className="text-xs text-gray-400 shrink-0 ml-1">{user.time}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 truncate mt-0.5">{user.last}</p>
-                </div>
-
-                {/* Unread badge */}
-                {user.unread > 0 && (
-                  <span className="shrink-0 w-5 h-5 rounded-full bg-linear-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
-                    {user.unread}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* New Chat Button */}
-          <button className="mt-4 bg-linear-to-r from-purple-500 to-pink-500 text-white py-2.5 rounded-2xl shadow-md hover:scale-[1.02] hover:shadow-lg transition-all duration-200 text-sm font-semibold">
-            + New Chat
-          </button>
-        </div>
-
-        {/* Right section */}
-        <div className="flex-1 bg-white h-full flex flex-col">
-
-          {/* Chat Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <img
-                  src={activeContact?.avatar}
-                  alt="profile"
-                  className="w-10 h-10 rounded-xl object-cover object-top shadow-sm"
-                />
-                {activeContact?.online && (
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-400 border-2 border-white" />
-                )}
-              </div>
               <div>
-                <h3 className="font-bold text-gray-800 text-sm">{activeContact?.name}</h3>
-                <p className={`text-xs ${activeContact?.online ? 'text-green-500' : 'text-gray-400'}`}>
-                  {activeContact?.online ? '● Online' : '● Offline'} · {activeContact?.role}
+                <h2 className="text-lg font-bold text-gray-800 tracking-tight">Messages</h2>
+                <p className={isConnected ? "text-xs text-green-600" : "text-xs text-gray-500"}>
+                  {isConnected ? "Realtime connected" : "Connecting..."}
                 </p>
               </div>
             </div>
-            <button className="p-2 rounded-xl hover:bg-gray-100 transition-all text-gray-400 hover:text-gray-600">
-              <Ellipsis className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Messages Area */}
-          <div className="flex-1 px-6 py-5 overflow-y-auto space-y-4 bg-gray-50/50">
-
-            {/* Other User Message */}
-            <div className="flex flex-col items-start">
-              <div className="flex items-end gap-2">
-                <img src={activeContact?.avatar} className="w-6 h-6 rounded-lg object-cover object-top mb-1" />
-                <div className="bg-white px-4 py-2.5 rounded-2xl rounded-bl-sm shadow-sm max-w-xs text-sm text-gray-700 border border-gray-100">
-                  Hey! How are you?
-                </div>
-              </div>
-              <span className="text-xs text-gray-400 mt-1 ml-8">10:30 AM</span>
-            </div>
-
-            {/* Current User Message */}
-            <div className="flex flex-col items-end">
-              <div className="bg-linear-to-r from-purple-500 to-pink-500 text-white px-4 py-2.5 rounded-2xl rounded-br-sm shadow-sm max-w-xs text-sm">
-                I'm good! What about you?
-              </div>
-              <span className="text-xs text-gray-400 mt-1">10:31 AM</span>
-            </div>
-
-          </div>
-
-          {/* Message Input */}
-          <div className="px-5 py-4 border-t border-gray-100 bg-white">
-            <div className="flex items-center gap-3 bg-gray-100 rounded-2xl px-4 py-2.5 border border-gray-200">
-
-              <div className="relative">
-                <Smile
-                  onClick={() => setShowEmoji(!showEmoji)}
-                  className="cursor-pointer hover:scale-110 transition text-gray-400 w-5 h-5 shrink-0"
-                />
-
-                {showEmoji && (
-                  <div className="absolute bottom-12 left-0 z-50">
-                    <EmojiPicker
-                      onEmojiClick={(emojiData) =>
-                        setMessage((prev) => prev + emojiData.emoji)
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-
-              <input
-                type="text"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder={`Message ${activeContact?.name}...`}
-                className="flex-1 bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400"
-              />
-
-              <button className="bg-linear-to-r from-purple-500 to-pink-500 text-white p-2 rounded-xl hover:scale-105 hover:shadow-md transition-all cursor-pointer shrink-0">
-                <Send className="w-4 h-4" />
+            <div className="flex items-center gap-2">
+              {totalUnread > 0 && (
+                <span className="min-w-5 h-5 px-1.5 rounded-full bg-green-500 text-white text-[11px] font-bold flex items-center justify-center">
+                  {totalUnread > 99 ? "99+" : totalUnread}
+                </span>
+              )}
+              <button
+                onClick={() => navigate("/profile")}
+                className="p-2 rounded-xl bg-white/70 hover:bg-white text-gray-600 transition"
+                title="Profile"
+              >
+                <User className="w-4 h-4" />
               </button>
-
             </div>
           </div>
 
+          <UserSearch onSelectUser={handleSelectUser} />
+
+          {historyError && <p className="mb-2 text-xs text-red-500">{historyError}</p>}
+          {loadingConversations ? (
+            <div className="flex-1 flex items-center justify-center text-xs text-gray-500">
+              Loading conversations...
+            </div>
+          ) : (
+            <ChatList
+              conversations={conversations}
+              selectedUserId={selectedUserId}
+              unreadCounts={unreadCounts}
+              onSelectUser={handleSelectUser}
+            />
+          )}
         </div>
+
+        <ChatWindow
+          selectedUser={selectedUser}
+          currentUserId={currentUserId}
+          messages={chatMessages}
+          socketErrors={socketErrors}
+          onSendMessage={handleSendMessage}
+          onMarkAsRead={handleMarkMessagesAsRead}
+          isConnected={isConnected}
+        />
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Chat
+export default Chat;

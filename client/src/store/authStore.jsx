@@ -1,5 +1,11 @@
 import { create } from "zustand"
 import axios from "axios"
+import {
+    getCurrentProfile,
+    removeProfilePicture,
+    updateCurrentProfile,
+    uploadProfilePicture,
+} from "../services/api";
 
 axios.defaults.baseURL = 'http://localhost:4000/api';
 axios.defaults.withCredentials = true;
@@ -71,7 +77,7 @@ export const useAuthStore = create((set) => ({
                 error: null
             });
 
-        } catch (err) {
+        } catch {
             set({
                 user: null,
                 checkingAuth: false,
@@ -87,7 +93,63 @@ export const useAuthStore = create((set) => ({
         } catch (err) {
             console.log("Logout failed", err);
         }
-    }
+    },
+
+    refreshProfile: async () => {
+        try {
+            const user = await getCurrentProfile();
+            set({ user, error: null });
+            return user;
+        } catch (err) {
+            set({ error: err.response?.data?.message || "Could not load profile" });
+            throw err;
+        }
+    },
+
+    updateProfile: async (profile) => {
+        try {
+            set({ loading: true, error: null });
+            const user = await updateCurrentProfile(profile);
+            set({ user, loading: false, error: null });
+            return user;
+        } catch (err) {
+            set({
+                loading: false,
+                error: err.response?.data?.message || "Could not update profile",
+            });
+            throw err;
+        }
+    },
+
+    uploadAvatar: async (file) => {
+        try {
+            set({ loading: true, error: null });
+            const user = await uploadProfilePicture(file);
+            set({ user, loading: false, error: null });
+            return user;
+        } catch (err) {
+            set({
+                loading: false,
+                error: err.response?.data?.message || "Could not upload profile picture",
+            });
+            throw err;
+        }
+    },
+
+    removeAvatar: async () => {
+        try {
+            set({ loading: true, error: null });
+            const user = await removeProfilePicture();
+            set({ user, loading: false, error: null });
+            return user;
+        } catch (err) {
+            set({
+                loading: false,
+                error: err.response?.data?.message || "Could not remove profile picture",
+            });
+            throw err;
+        }
+    },
 
 
 }))

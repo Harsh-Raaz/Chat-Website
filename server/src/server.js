@@ -6,6 +6,8 @@ import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import authrouter from "./routes/authRouter.js";
+import userRouter from "./routes/userRouter.js";
+import messageRouter from "./routes/messageRouter.js";
 import socketAuth from "./middlewares/socketAuth.js";
 import initializeSocket from "./controllers/socketController.js";
 
@@ -22,8 +24,16 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 app.use("/api", authrouter);
+app.use("/api", userRouter);
+app.use("/api", messageRouter);
 app.use((err, req, res, next) => {
   console.error(err.stack);
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({ success: false, message: "Profile picture must be less than 5MB." });
+  }
+  if (err.message?.includes("Profile picture must be")) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
   res.status(500).json({ message: err.message || "Internal Server Error" });
 });
 
@@ -52,5 +62,4 @@ const startServer = async () => {
   }
 };
 
-console.log(process.env.CLOUD_API_KEY);
 startServer();
