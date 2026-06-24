@@ -75,6 +75,11 @@ export const useSocket = () => {
       }));
     });
 
+    socket.on('messages_deleted', ({ messageIds }) => {
+      const ids = new Set(messageIds || []);
+      setMessages(prev => prev.filter((msg) => !ids.has(msg._id || msg.id)));
+    });
+
     // Message error
     socket.on('message_error', (error) => {
       console.error('Message error:', error);
@@ -95,6 +100,7 @@ export const useSocket = () => {
       socket.off('message_delivered');
       socket.off('message_delivery_confirmation');
       socket.off('messages_read');
+      socket.off('messages_deleted');
       socket.off('message_error');
       socket.off('socket_error');
       socket.disconnect();
@@ -107,7 +113,7 @@ export const useSocket = () => {
   }, []);
 
   const sendMessage = useCallback((payload) => {
-    const tempId = Date.now().toString();
+    const tempId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const messageData = { ...payload, tempId };
 
     // Add to local messages immediately with pending status
@@ -137,6 +143,14 @@ export const useSocket = () => {
     });
   }, []);
 
+  const deleteMessages = useCallback((messageIds) => {
+    socket.emit('delete_messages', { messageIds }, (response) => {
+      if (response?.status === 'error') {
+        setSocketErrors(prev => [...prev, { message: response.message || 'Could not delete messages' }]);
+      }
+    });
+  }, []);
+
   const confirmMessageReceived = useCallback((messageId, senderId) => {
     socket.emit('message_received', { messageId, senderId });
   }, []);
@@ -162,6 +176,7 @@ export const useSocket = () => {
     socketErrors,
     joinRoom,
     sendMessage,
+    deleteMessages,
     confirmMessageReceived,
     markMessagesAsRead,
     getUnreadCountsFromSocket,

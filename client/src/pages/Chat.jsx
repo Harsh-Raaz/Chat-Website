@@ -34,6 +34,7 @@ const Chat = () => {
     messages,
     setMessages,
     sendMessage,
+    deleteMessages,
     markMessagesAsRead,
     getUnreadCountsFromSocket,
     socketErrors,
@@ -217,6 +218,33 @@ const Chat = () => {
     }
   };
 
+  const handleForwardMessage = (messagesToForward, recipientIds) => {
+    if (!currentUserId || !messagesToForward.length || !recipientIds.length) return;
+
+    recipientIds.forEach((recipientId) => {
+      const recipient = conversations.find((conversation) => getUserId(conversation.user) === recipientId)?.user;
+      if (!recipient) return;
+
+      messagesToForward.forEach((message) => {
+        const forwardedMessage = {
+          from: currentUserId,
+          to: recipientId,
+          content: message.content || "",
+          attachment: message.attachment || null,
+        };
+        sendMessage(forwardedMessage);
+        setConversations((current) =>
+          upsertConversation(current, recipient, {
+            ...forwardedMessage,
+            timestamp: new Date().toISOString(),
+          })
+        );
+      });
+    });
+  };
+
+  const handleDeleteMessages = (messageIds) => deleteMessages(messageIds);
+
   const handleMarkMessagesAsRead = useCallback((messageIds, senderId) => {
     clearUnreadForUser(senderId?.toString());
     markMessagesAsRead(messageIds, senderId, (response) => {
@@ -290,8 +318,11 @@ const Chat = () => {
           socketErrors={socketErrors}
           onSendMessage={handleSendMessage}
           onSendFile={handleSendFile}
+          onForwardMessage={handleForwardMessage}
+          onDeleteMessages={handleDeleteMessages}
           onMarkAsRead={handleMarkMessagesAsRead}
           isConnected={isConnected}
+          conversations={conversations}
         />
       </div>
     </div>

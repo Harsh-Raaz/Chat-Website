@@ -224,6 +224,32 @@ const initializeSocket = (io) => {
       }
     });
 
+    socket.on("delete_messages", async ({ messageIds } = {}, callback) => {
+      try {
+        const validMessageIds = [...new Set((messageIds || []).filter((messageId) => mongoose.Types.ObjectId.isValid(messageId)))];
+        if (!validMessageIds.length) throw new Error("Valid message IDs are required.");
+
+        const messagesToDelete = await Message.find({
+          _id: { $in: validMessageIds },
+          from: userId,
+        }).select("_id to");
+        const deletedIds = messagesToDelete.map((message) => message._id.toString());
+        if (!deletedIds.length) throw new Error("Only your sent messages can be deleted.");
+
+        await Message.deleteMany({ _id: { $in: deletedIds }, from: userId });
+        const deletionPayload = { messageIds: deletedIds };
+        io.to(`user_${userId}`).emit("messages_deleted", deletionPayload);
+        [...new Set(messagesToDelete.map((message) => message.to?.toString()).filter(Boolean))]
+          .forEach((recipientId) => io.to(`user_${recipientId}`).emit("messages_deleted", deletionPayload));
+
+        if (callback) callback({ status: "ok", ...deletionPayload });
+      } catch (error) {
+        const err = { status: "error", message: error.message || "Could not delete messages" };
+        if (callback) return callback(err);
+        socket.emit("socket_error", err);
+      }
+    });
+
     socket.on("get_unread_counts", async (callback) => {
       try {
         const counts = await getUnreadCountsForUser(userId);

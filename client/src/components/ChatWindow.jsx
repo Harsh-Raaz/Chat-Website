@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import EmojiPicker from "emoji-picker-react";
-import { AlertCircle, Check, CheckCheck, Clock, Ellipsis, FileText, MessageCircle, Mic, MicOff, Paperclip, Phone, PhoneOff, Send, Smile, Video, VideoOff } from "lucide-react";
+import { AlertCircle, Check, CheckCheck, Clock, Ellipsis, FileText, Forward, MessageCircle, Mic, MicOff, Paperclip, Phone, PhoneOff, Send, Smile, Trash2, Video, VideoOff, X } from "lucide-react";
 import { socket } from "../socket/socket.js";
 
 const rtcConfiguration = {
@@ -14,8 +14,11 @@ const ChatWindow = ({
   socketErrors,
   onSendMessage,
   onSendFile,
+  onForwardMessage,
+  onDeleteMessages,
   onMarkAsRead,
   isConnected,
+  conversations = [],
 }) => {
   const [message, setMessage] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
@@ -30,6 +33,9 @@ const ChatWindow = ({
   const [call, setCall] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
+  const [selectedMessages, setSelectedMessages] = useState([]);
+  const [showForwardPicker, setShowForwardPicker] = useState(false);
+  const [forwardRecipientIds, setForwardRecipientIds] = useState([]);
 
   const cleanupCall = (notifyPeer = false) => {
     if (notifyPeer && activePeerIdRef.current) {
@@ -192,6 +198,51 @@ const ChatWindow = ({
     event.target.value = "";
   };
 
+  const getMessageId = (msg) => (msg?._id || msg?.id || msg?.tempId || "").toString();
+
+  const toggleMessageSelection = (msg) => {
+    const messageId = getMessageId(msg);
+    setSelectedMessages((current) => current.some((item) => getMessageId(item) === messageId)
+      ? current.filter((item) => getMessageId(item) !== messageId)
+      : [...current, msg]);
+  };
+
+  const isMessageSelected = (msg) => selectedMessages.some((item) => getMessageId(item) === getMessageId(msg));
+
+  const openForwardPicker = () => {
+    if (!selectedMessages.length) return;
+    setForwardRecipientIds([]);
+    setShowForwardPicker(true);
+  };
+
+  const toggleForwardRecipient = (userId) => {
+    setForwardRecipientIds((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+    );
+  };
+
+  const handleForward = () => {
+    if (!selectedMessages.length || !forwardRecipientIds.length) return;
+    onForwardMessage?.(selectedMessages, forwardRecipientIds);
+    setShowForwardPicker(false);
+    setSelectedMessages([]);
+    setForwardRecipientIds([]);
+  };
+
+  const canDeleteSelectedMessages = selectedMessages.length > 0 && selectedMessages.every((msg) => msg.from?.toString() === currentUserId && msg._id);
+
+  const handleDelete = () => {
+    if (!canDeleteSelectedMessages) return;
+    if (!window.confirm(`Delete ${selectedMessages.length} selected message${selectedMessages.length === 1 ? "" : "s"} for everyone?`)) return;
+    onDeleteMessages?.(selectedMessages.map((msg) => msg._id));
+    setSelectedMessages([]);
+  };
+
+  const forwardableConversations = conversations.filter((conversation, index, all) => {
+    const userId = (conversation.user?._id || conversation.user?.id || "").toString();
+    return userId && userId !== currentUserId && all.findIndex((item) => (item.user?._id || item.user?.id || "").toString() === userId) === index;
+  });
+
   const getMessageStatusIcon = (status) => {
     switch (status) {
       case "sending":
@@ -277,6 +328,20 @@ const ChatWindow = ({
       </div>
 
       <div className="flex-1 px-6 py-5 overflow-y-auto space-y-4 bg-gray-50/50">
+        {selectedMessages.length > 0 && (
+          <div className="sticky top-0 z-20 mx-auto flex w-fit items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-md">
+            <span className="text-xs font-semibold text-gray-600">{selectedMessages.length} selected</span>
+            <button type="button" onClick={openForwardPicker} className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-purple-600 hover:bg-purple-50">
+              <Forward className="h-3.5 w-3.5" /> Forward
+            </button>
+            <button type="button" onClick={handleDelete} disabled={!canDeleteSelectedMessages} title={canDeleteSelectedMessages ? "Delete for everyone" : "Only sent, delivered messages can be deleted"} className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40">
+              <Trash2 className="h-3.5 w-3.5" /> Delete
+            </button>
+            <button type="button" onClick={() => setSelectedMessages([])} className="p-1 text-gray-400 hover:text-gray-700" title="Clear selection">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-400">
             <div className="text-center">
@@ -308,11 +373,20 @@ const ChatWindow = ({
                       />
                     )}
                     <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => toggleMessageSelection(msg)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          toggleMessageSelection(msg);
+                        }
+                      }}
                       className={`px-4 py-2.5 rounded-2xl shadow-sm text-sm border break-words ${
                         isOwnMessage
                           ? "bg-linear-to-r from-purple-500 to-pink-500 text-white rounded-br-sm border-transparent"
                           : "bg-white text-gray-700 rounded-bl-sm border-gray-100"
-                      }`}
+                      } ${isMessageSelected(msg) ? "cursor-pointer ring-2 ring-purple-300" : "cursor-pointer"}`}
                     >
                       {msg.attachment?.url && (
                         <a
@@ -391,6 +465,49 @@ const ChatWindow = ({
           </button>
         </div>
       </div>
+
+      {showForwardPicker && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/30 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h4 className="font-bold text-gray-800">Forward {selectedMessages.length} message{selectedMessages.length === 1 ? "" : "s"}</h4>
+                <p className="mt-1 text-xs text-gray-500">Choose one or more recent chats.</p>
+              </div>
+              <button type="button" onClick={() => setShowForwardPicker(false)} className="text-gray-400 hover:text-gray-700" title="Close">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="mt-4 max-h-64 space-y-1 overflow-y-auto">
+              {forwardableConversations.length ? forwardableConversations.map((conversation) => {
+                const user = conversation.user;
+                const userId = (user._id || user.id).toString();
+                const isSelected = forwardRecipientIds.includes(userId);
+                return (
+                  <button
+                    type="button"
+                    key={userId}
+                    onClick={() => toggleForwardRecipient(userId)}
+                    className={`flex w-full items-center gap-3 rounded-xl p-2 text-left transition ${isSelected ? "bg-purple-50 ring-1 ring-purple-300" : "hover:bg-gray-50"}`}
+                  >
+                    <img src={user.profilePicture || user.profilePic || "/vite.svg"} alt="" className="h-9 w-9 rounded-xl object-cover object-top" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-700">{user.name}</span>
+                    {isSelected && <Check className="h-4 w-4 text-purple-600" />}
+                  </button>
+                );
+              }) : <p className="py-5 text-center text-sm text-gray-500">No recent chats to forward to yet.</p>}
+            </div>
+            <button
+              type="button"
+              onClick={handleForward}
+              disabled={!forwardRecipientIds.length || !isConnected}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-linear-to-r from-purple-500 to-pink-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Send className="h-4 w-4" /> Send to {forwardRecipientIds.length || "..."} chat{forwardRecipientIds.length === 1 ? "" : "s"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {call && (
         <div className="absolute inset-0 z-40 bg-slate-950/95 text-white flex flex-col items-center justify-center p-6">
