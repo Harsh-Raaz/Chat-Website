@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import ChatList from "../components/ChatList";
 import ChatWindow from "../components/ChatWindow";
 import UserSearch from "../components/UserSearch";
-import { getConversations, getMessageHistory, getUnreadCounts, getUserProfile } from "../services/api";
+import { getConversations, getMessageHistory, getUnreadCounts, getUserProfile, uploadChatAttachment } from "../services/api";
 import { useSocket } from "../hooks/useSocket";
 import { useAuthStore } from "../store/authStore";
 
@@ -197,6 +197,26 @@ const Chat = () => {
     );
   };
 
+  const handleSendFile = async (file) => {
+    if (!selectedUserId || !currentUserId || !file) return;
+
+    try {
+      const attachment = await uploadChatAttachment(file);
+      sendMessage({ from: currentUserId, to: selectedUserId, content: "", attachment });
+      setConversations((current) =>
+        upsertConversation(current, selectedUser, {
+          from: currentUserId,
+          to: selectedUserId,
+          content: attachment.name,
+          attachment,
+          timestamp: new Date().toISOString(),
+        })
+      );
+    } catch (error) {
+      setHistoryError(error.response?.data?.message || "Could not upload file");
+    }
+  };
+
   const handleMarkMessagesAsRead = useCallback((messageIds, senderId) => {
     clearUnreadForUser(senderId?.toString());
     markMessagesAsRead(messageIds, senderId, (response) => {
@@ -215,8 +235,8 @@ const Chat = () => {
   }, [clearUnreadForUser, markMessagesAsRead, setMessages]);
 
   return (
-    <div className="min-h-screen w-full bg-linear-to-br from-indigo-100 via-purple-200 to-pink-200 flex items-center justify-center p-4">
-      <div className="max-w-6xl w-full h-[85vh] rounded-3xl shadow-2xl bg-white flex overflow-hidden">
+    <div className="w-screen h-screen bg-white">
+      <div className="w-full h-full bg-white flex overflow-hidden">
         <div className="w-75 h-full bg-linear-to-b from-indigo-100 via-purple-100 to-pink-100 flex flex-col p-5">
           <div className="flex items-center justify-between pb-4 mb-4 border-b border-white/60">
             <div className="flex items-center gap-3">
@@ -269,6 +289,7 @@ const Chat = () => {
           messages={chatMessages}
           socketErrors={socketErrors}
           onSendMessage={handleSendMessage}
+          onSendFile={handleSendFile}
           onMarkAsRead={handleMarkMessagesAsRead}
           isConnected={isConnected}
         />

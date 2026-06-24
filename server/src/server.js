@@ -29,7 +29,7 @@ app.use("/api", messageRouter);
 app.use((err, req, res, next) => {
   console.error(err.stack);
   if (err.code === "LIMIT_FILE_SIZE") {
-    return res.status(400).json({ success: false, message: "Profile picture must be less than 5MB." });
+    return res.status(400).json({ success: false, message: "File must be less than the allowed size." });
   }
   if (err.message?.includes("Profile picture must be")) {
     return res.status(400).json({ success: false, message: err.message });
@@ -45,7 +45,7 @@ const io = new Server(server, {
     credentials: true,
   },
 });
-
+console.log("MONGODB_URI =", process.env.MONGODB_URI);
 io.use(socketAuth);
 initializeSocket(io);
 

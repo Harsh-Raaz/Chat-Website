@@ -2,11 +2,12 @@ import mongoose from "mongoose";
 import Message from "../models/Message.js";
 import userModel from "../models/user.js";
 
-const buildMessagePayload = ({ from, to, roomId, content, tempId }) => ({
+const buildMessagePayload = ({ from, to, roomId, content, attachment, tempId }) => ({
   from,
   to: to || null,
   roomId: roomId || null,
   content,
+  attachment: attachment || null,
   tempId: tempId || null,
   timestamp: new Date().toISOString(),
 });
@@ -18,6 +19,7 @@ const formatMessage = (message) => ({
   to: message.to?.toString(),
   roomId: message.roomId || null,
   content: message.content,
+  attachment: message.attachment || null,
   readStatus: message.readStatus,
   deliveredAt: message.deliveredAt?.toISOString?.() || message.deliveredAt || null,
   readAt: message.readAt?.toISOString?.() || message.readAt || null,
@@ -63,13 +65,30 @@ const initializeSocket = (io) => {
       socket.emit("room_joined", success);
     });
 
+    const relayCallSignal = (eventName, payload = {}, callback) => {
+      const { to, ...signal } = payload;
+      if (!mongoose.Types.ObjectId.isValid(to) || to === userId) {
+        const error = { status: "error", message: "A valid recipient is required." };
+        if (callback) return callback(error);
+        return socket.emit("socket_error", error);
+      }
+
+      io.to(`user_${to}`).emit(eventName, { ...signal, from: userId });
+      if (callback) callback({ status: "ok" });
+    };
+
+    socket.on("call_user", (payload, callback) => relayCallSignal("call_incoming", payload, callback));
+    socket.on("call_answer", (payload, callback) => relayCallSignal("call_answered", payload, callback));
+    socket.on("call_ice_candidate", (payload) => relayCallSignal("call_ice_candidate", payload));
+    socket.on("call_end", (payload) => relayCallSignal("call_ended", payload));
+
     socket.on("send_message", async (payload, callback) => {
       try {
-        const { to, roomId, content, tempId } = payload || {};
+        const { to, roomId, content, attachment, tempId } = payload || {};
         const trimmedContent = content?.trim();
 
-        if (!trimmedContent || (!to && !roomId)) {
-          throw new Error("Message content and recipient or room ID are required.");
+        if ((!trimmedContent && !attachment?.url) || (!to && !roomId)) {
+          throw new Error("Message text or attachment and recipient or room ID are required.");
         }
 
         let message = buildMessagePayload({
@@ -77,6 +96,7 @@ const initializeSocket = (io) => {
           to,
           roomId,
           content: trimmedContent,
+          attachment,
           tempId,
         });
 
@@ -98,6 +118,7 @@ const initializeSocket = (io) => {
             from: userId,
             to,
             content: trimmedContent,
+            attachment,
             tempId,
             readStatus: "delivered",
             deliveredAt: new Date(),

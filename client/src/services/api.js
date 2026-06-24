@@ -65,4 +65,11 @@ export const removeProfilePicture = async () => {
   return data.user;
 };
 
+export const uploadChatAttachment = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const { data } = await api.post("/messages/attachment", formData);
+  return data.attachment;
+};
+
 export default api;

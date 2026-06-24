@@ -16,3 +16,8 @@ const upload = multer({
 });
 
 export default upload;
+
+export const uploadAttachment = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+});

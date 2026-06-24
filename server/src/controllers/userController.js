@@ -44,6 +44,7 @@ const formatMessage = (message) => ({
   from: message.from,
   to: message.to,
   content: message.content,
+  attachment: message.attachment || null,
   readStatus: message.readStatus,
   deliveredAt: message.deliveredAt,
   readAt: message.readAt,

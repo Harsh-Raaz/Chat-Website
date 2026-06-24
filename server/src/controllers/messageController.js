@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 import Message from "../models/Message.js";
+import cloudinary from "../config/cloudinary.js";
+import streamifier from "streamifier";
 
 const formatMessage = (message) => ({
   _id: message._id,
@@ -8,6 +10,7 @@ const formatMessage = (message) => ({
   to: message.to,
   roomId: message.roomId,
   content: message.content,
+  attachment: message.attachment || null,
   readStatus: message.readStatus,
   deliveredAt: message.deliveredAt,
   readAt: message.readAt,
@@ -17,6 +20,36 @@ const formatMessage = (message) => ({
   createdAt: message.createdAt,
   updatedAt: message.updatedAt,
 });
+
+const uploadToCloudinary = (file) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: "chat-attachments", resource_type: "auto" },
+      (error, result) => (error ? reject(error) : resolve(result))
+    );
+    streamifier.createReadStream(file.buffer).pipe(stream);
+  });
+
+export const uploadAttachment = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "A file is required." });
+    }
+
+    const result = await uploadToCloudinary(req.file);
+    return res.json({
+      success: true,
+      attachment: {
+        url: result.secure_url,
+        name: req.file.originalname,
+        type: req.file.mimetype || "application/octet-stream",
+        size: req.file.size,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message || "File upload failed." });
+  }
+};
 
 export const getUnreadCounts = async (req, res) => {
   try {

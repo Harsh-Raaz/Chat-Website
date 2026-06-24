@@ -20,8 +20,16 @@ const messageSchema = new mongoose.Schema(
     },
     content: {
       type: String,
-      required: true,
+      required: function requiredWhenNoAttachment() {
+        return !this.attachment?.url;
+      },
       trim: true,
+    },
+    attachment: {
+      url: { type: String, default: null },
+      name: { type: String, default: null },
+      type: { type: String, default: null },
+      size: { type: Number, default: null },
     },
     readStatus: {
       type: String,
