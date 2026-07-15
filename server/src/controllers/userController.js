@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Message from "../models/Message.js";
+import Group from "../models/Group.js";
 import userModel from "../models/user.js";
 import cloudinary from "../config/cloudinary.js";
 import streamifier from "streamifier";
@@ -43,6 +44,7 @@ const formatMessage = (message) => ({
   id: message._id,
   from: message.from,
   to: message.to,
+  roomId: message.roomId || null,
   content: message.content,
   attachment: message.attachment || null,
   readStatus: message.readStatus,
@@ -224,8 +226,8 @@ export const getMessageHistory = async (req, res) => {
     const currentUserId = req.user._id;
     const messages = await Message.find({
       $or: [
-        { from: currentUserId, to: userId },
-        { from: userId, to: currentUserId },
+        { from: currentUserId, to: userId, roomId: null },
+        { from: userId, to: currentUserId, roomId: null },
       ],
     })
       .sort({ createdAt: -1 })
@@ -244,8 +246,12 @@ export const getMessageHistory = async (req, res) => {
 export const getConversations = async (req, res) => {
   try {
     const currentUserId = req.user._id;
+    const groups = await Group.find({ members: currentUserId })
+      .populate("members", "_id name email profilePic profilePicture profilePicturePublicId")
+      .lean();
+    const groupsByRoomId = new Map(groups.map((group) => [group._id.toString(), group]));
     const messages = await Message.find({
-      $or: [{ from: currentUserId }, { to: currentUserId }],
+      $or: [{ from: currentUserId }, { to: currentUserId }, { roomId: { $in: [...groupsByRoomId.keys()] } }],
     })
       .sort({ createdAt: -1 })
       .limit(200)
@@ -256,11 +262,33 @@ export const getConversations = async (req, res) => {
     const conversations = new Map();
 
     messages.forEach((message) => {
+      if (message.roomId) {
+        const roomId = message.roomId.toString();
+        const group = groupsByRoomId.get(roomId);
+        if (!group || conversations.has(`group:${roomId}`)) return;
+        conversations.set(`group:${roomId}`, {
+          type: "group",
+          roomId,
+          group: {
+            _id: group._id,
+            id: group._id,
+            name: group.name,
+            avatar: group.avatar || "",
+            members: group.members.filter(Boolean).map(formatUser),
+          },
+          lastMessage: formatMessage(message),
+        });
+        return;
+      }
+
+      if (!message.from || !message.to) return;
       const otherUser =
         message.from._id.toString() === currentUserId.toString() ? message.to : message.from;
 
-      if (!conversations.has(otherUser._id.toString())) {
-        conversations.set(otherUser._id.toString(), {
+      if (!otherUser?._id || conversations.has(`direct:${otherUser._id}`)) return;
+      if (!conversations.has(`direct:${otherUser._id}`)) {
+        conversations.set(`direct:${otherUser._id}`, {
+          type: "direct",
           user: formatUser(otherUser),
           lastMessage: formatMessage({
             ...message,

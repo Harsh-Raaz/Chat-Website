@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Message from "../models/Message.js";
+import Group from "../models/Group.js";
 import cloudinary from "../config/cloudinary.js";
 import streamifier from "streamifier";
 
@@ -86,8 +87,8 @@ export const getConversationMessages = async (req, res) => {
 
     const query = {
       $or: [
-        { from: currentUserId, to: userId },
-        { from: userId, to: currentUserId },
+        { from: currentUserId, to: userId, roomId: null },
+        { from: userId, to: currentUserId, roomId: null },
       ],
     };
 
@@ -101,6 +102,17 @@ export const getConversationMessages = async (req, res) => {
       success: true,
       messages: messages.reverse().map(formatMessage),
     });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getGroupMessages = async (req, res) => {
+  try {
+    const group = await Group.findOne({ _id: req.params.roomId, members: req.user._id }).lean();
+    if (!group) return res.status(404).json({ success: false, message: "Group not found." });
+    const messages = await Message.find({ roomId: group._id.toString() }).sort({ createdAt: -1 }).limit(100).lean();
+    return res.json({ success: true, messages: messages.reverse().map(formatMessage) });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

@@ -7,7 +7,13 @@ const formatPreviewTime = (timestamp) => {
 };
 
 const ChatList = ({ conversations, selectedUserId, unreadCounts = {}, onSelectUser }) => {
-  if (!conversations.length) {
+  const validConversations = (Array.isArray(conversations) ? conversations : []).filter((conversation) => {
+    if (!conversation) return false;
+    const item = conversation.type === "group" ? conversation.group : conversation.user;
+    return Boolean(item?._id || item?.id);
+  });
+
+  if (!validConversations.length) {
     return (
       <div className="flex-1 flex items-center justify-center px-4 text-center text-xs text-gray-500">
         Search by email to start a direct chat.
@@ -17,16 +23,18 @@ const ChatList = ({ conversations, selectedUserId, unreadCounts = {}, onSelectUs
 
   return (
     <div className="flex-1 overflow-y-auto space-y-1 pr-1">
-      {conversations.map((conversation) => {
-        const user = conversation.user;
-        const userId = (user._id || user.id)?.toString();
+      {validConversations.map((conversation) => {
+        const isGroup = conversation.type === "group";
+        const user = isGroup ? conversation.group : conversation.user;
+        const userId = (isGroup ? conversation.roomId : (user?._id || user?.id))?.toString();
+        if (!user || !userId) return null;
         const isActive = selectedUserId === userId;
         const unreadCount = unreadCounts[userId] || 0;
 
         return (
           <button
             key={userId}
-            onClick={() => onSelectUser(user)}
+            onClick={() => onSelectUser(isGroup ? { ...user, type: "group", roomId: conversation.roomId } : user)}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-200 ${
               isActive
                 ? "bg-white shadow-md"
@@ -38,7 +46,7 @@ const ChatList = ({ conversations, selectedUserId, unreadCounts = {}, onSelectUs
             <div className="relative shrink-0">
               <img
                 className="rounded-xl w-10 h-10 object-cover object-top"
-                src={user.profilePicture || user.profilePic || "/vite.svg"}
+                src={isGroup ? (user.avatar || "/vite.svg") : (user.profilePicture || user.profilePic || "/vite.svg")}
                 alt={user.name}
               />
             </div>
@@ -53,7 +61,7 @@ const ChatList = ({ conversations, selectedUserId, unreadCounts = {}, onSelectUs
               </div>
               <div className="flex items-center gap-2 mt-0.5">
                 <p className={`text-xs truncate flex-1 ${unreadCount ? "text-gray-900 font-semibold" : "text-gray-500"}`}>
-                  {conversation.lastMessage?.content || user.email}
+                  {conversation.lastMessage?.content || (isGroup ? `${user.members?.length || 0} members` : user.email)}
                 </p>
                 <UnreadBadge count={unreadCount} />
               </div>

@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Message from "../models/Message.js";
 import userModel from "../models/user.js";
+import Group from "../models/Group.js";
 
 const buildMessagePayload = ({ from, to, roomId, content, attachment, tempId }) => ({
   from,
@@ -129,7 +130,24 @@ const initializeSocket = (io) => {
         }
 
         if (roomId) {
-          io.to(roomId).emit("receive_message", message);
+          const group = await Group.findOne({ _id: roomId, members: userId })
+            .populate("members", "_id name email profilePic profilePicture profilePicturePublicId")
+            .lean();
+          if (!group) throw new Error("Group not found or you are not a member.");
+
+          const savedMessage = await Message.create({
+            from: userId,
+            roomId: group._id.toString(),
+            content: trimmedContent,
+            attachment,
+            tempId,
+          });
+          message = {
+            ...formatMessage(savedMessage),
+            group: { _id: group._id, id: group._id, name: group.name, avatar: group.avatar || "", members: group.members },
+          };
+          // Personal rooms reach every member even before their client has joined the group room.
+          group.members.filter(Boolean).forEach((member) => io.to(`user_${member._id}`).emit("receive_message", message));
         } else {
           io.to(`user_${to}`).emit("receive_message", message);
         }

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import ChatList from "../components/ChatList";
 import ChatWindow from "../components/ChatWindow";
 import UserSearch from "../components/UserSearch";
-import { getConversations, getMessageHistory, getUnreadCounts, getUserProfile, uploadChatAttachment } from "../services/api";
+import { getConversations, getMessageHistory, getGroupMessageHistory, getUnreadCounts, getUserProfile, uploadChatAttachment } from "../services/api";
 import { useSocket } from "../hooks/useSocket";
 import { useAuthStore } from "../store/authStore";
 
@@ -39,6 +39,7 @@ const Chat = () => {
     getUnreadCountsFromSocket,
     socketErrors,
     clearErrors,
+    joinRoom,
   } = useSocket();
 
   const selectedUserId = getUserId(selectedUser);
@@ -79,13 +80,16 @@ const Chat = () => {
     if (!selectedUser) return;
 
     const selectedUserId = getUserId(selectedUser);
+    const isGroup = selectedUser.type === "group";
 
     const loadMessages = async () => {
       try {
         setHistoryError("");
-        const history = await getMessageHistory(selectedUserId);
+        if (isGroup) joinRoom(selectedUser.roomId);
+        const history = isGroup ? await getGroupMessageHistory(selectedUser.roomId) : await getMessageHistory(selectedUserId);
         setMessages((currentMessages) => {
           const otherMessages = currentMessages.filter((message) => {
+            if (isGroup) return message.roomId !== selectedUser.roomId;
             const from = message.from?.toString();
             const to = message.to?.toString();
             return !(
@@ -109,12 +113,20 @@ const Chat = () => {
     };
 
     loadMessages();
-  }, [currentUserId, selectedUser, setMessages]);
+  }, [currentUserId, joinRoom, selectedUser, setMessages]);
 
   useEffect(() => {
     if (!messages.length || !currentUserId) return;
 
     const latestMessage = messages[messages.length - 1];
+    if (latestMessage.roomId) {
+      if (!latestMessage.group) return;
+      setConversations((current) => {
+        const entry = { type: "group", roomId: latestMessage.roomId, group: latestMessage.group, lastMessage: latestMessage };
+        return [entry, ...current.filter((conversation) => conversation.roomId !== latestMessage.roomId)];
+      });
+      return;
+    }
     const from = latestMessage.from?.toString();
     const to = latestMessage.to?.toString();
     const otherUserId = from === currentUserId ? to : from;
@@ -155,6 +167,7 @@ const Chat = () => {
     if (!selectedUserId || !currentUserId) return [];
 
     return messages.filter((message) => {
+      if (selectedUser.type === "group") return message.roomId === selectedUser.roomId;
       const from = message.from?.toString();
       const to = message.to?.toString();
       return (
@@ -175,12 +188,21 @@ const Chat = () => {
 
   const handleSelectUser = (nextUser) => {
     setSelectedUser(nextUser);
+    if (nextUser?.type === "group") {
+      clearUnreadForUser(nextUser.roomId);
+      return;
+    }
     setConversations((current) => upsertConversation(current, nextUser));
     clearUnreadForUser(getUserId(nextUser));
   };
 
   const handleSendMessage = (content) => {
     if (!selectedUserId || !currentUserId) return;
+
+    if (selectedUser.type === "group") {
+      sendMessage({ from: currentUserId, roomId: selectedUser.roomId, content });
+      return;
+    }
 
     sendMessage({
       from: currentUserId,
@@ -203,6 +225,10 @@ const Chat = () => {
 
     try {
       const attachment = await uploadChatAttachment(file);
+      if (selectedUser.type === "group") {
+        sendMessage({ from: currentUserId, roomId: selectedUser.roomId, content: "", attachment });
+        return;
+      }
       sendMessage({ from: currentUserId, to: selectedUserId, content: "", attachment });
       setConversations((current) =>
         upsertConversation(current, selectedUser, {

@@ -25,6 +25,11 @@ export const getMessageHistory = async (userId) => {
   return data.messages || [];
 };
 
+export const getGroupMessageHistory = async (roomId) => {
+  const { data } = await api.get(`/messages/group/${roomId}`);
+  return data.messages || [];
+};
+
 export const getConversationMessages = async (userId, params = {}) => {
   const { data } = await api.get(`/messages/conversation/${userId}`, { params });
   return data.messages || [];

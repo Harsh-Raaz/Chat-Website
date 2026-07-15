@@ -10,6 +10,7 @@ import userRouter from "./routes/userRouter.js";
 import messageRouter from "./routes/messageRouter.js";
 import socketAuth from "./middlewares/socketAuth.js";
 import initializeSocket from "./controllers/socketController.js";
+import groupRouter from "./routes/groupRouter.js";
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use(cookieParser());
 app.use("/api", authrouter);
 app.use("/api", userRouter);
 app.use("/api", messageRouter);
+app.use("/api", groupRouter);
 app.use((err, req, res, next) => {
   console.error(err.stack);
   if (err.code === "LIMIT_FILE_SIZE") {
@@ -45,6 +47,7 @@ const io = new Server(server, {
     credentials: true,
   },
 });
+app.set("io", io);
 console.log("MONGODB_URI =", process.env.MONGODB_URI);
 io.use(socketAuth);
 initializeSocket(io);
