@@ -7,7 +7,7 @@ import {
     uploadProfilePicture,
 } from "../services/api";
 
-axios.defaults.baseURL = 'http://localhost:4000/api';
+axios.defaults.baseURL = 'https://chat-website-backend-holo.onrender.com/api';
 axios.defaults.withCredentials = true;
 
 export const useAuthStore = create((set) => ({
