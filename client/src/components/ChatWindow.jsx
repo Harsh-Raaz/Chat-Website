@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import EmojiPicker from "emoji-picker-react";
-import { AlertCircle, Check, CheckCheck, Clock, Ellipsis, FileText, Forward, MessageCircle, Mic, MicOff, Paperclip, Phone, PhoneOff, Send, Smile, Trash2, Video, VideoOff, X } from "lucide-react";
+import { AlertCircle, Check, CheckCheck, Clock, Ellipsis, FileText, Forward, MessageCircle, Mic, MicOff, Paperclip, Phone, PhoneOff, Send, Smile, Trash2, Users, Video, VideoOff, X } from "lucide-react";
 import { socket } from "../socket/socket.js";
 
 const rtcConfiguration = {
@@ -36,6 +36,8 @@ const ChatWindow = ({
   const [selectedMessages, setSelectedMessages] = useState([]);
   const [showForwardPicker, setShowForwardPicker] = useState(false);
   const [forwardRecipientIds, setForwardRecipientIds] = useState([]);
+  const [showGroupMembers, setShowGroupMembers] = useState(false);
+  const isGroup = selectedUser?.type === "group";
 
   const cleanupCall = (notifyPeer = false) => {
     if (notifyPeer && activePeerIdRef.current) {
@@ -303,29 +305,47 @@ const ChatWindow = ({
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white">
         <div className="flex items-center gap-3 min-w-0">
           <img
-            src={selectedUser.profilePicture || selectedUser.profilePic || "/vite.svg"}
+            src={isGroup ? (selectedUser.avatar || "/vite.svg") : (selectedUser.profilePicture || selectedUser.profilePic || "/vite.svg")}
             alt={selectedUser.name}
             className="w-10 h-10 rounded-xl object-cover object-top shadow-sm"
           />
           <div className="min-w-0">
             <h3 className="font-bold text-gray-800 text-sm truncate">{selectedUser.name}</h3>
             <p className={isConnected ? "text-xs text-green-500" : "text-xs text-gray-400"}>
-              {isConnected ? "Connected" : "Disconnected"} · {selectedUser.email}
+              {isGroup
+                ? `${selectedUser.members?.length || 0} members`
+                : `${isConnected ? "Connected" : "Disconnected"} · ${selectedUser.email}`}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {isGroup && (
+            <button onClick={() => setShowGroupMembers(true)} title="View members" className="p-2 rounded-xl hover:bg-gray-100 transition-all text-gray-400 hover:text-purple-600">
+              <Users className="w-5 h-5" />
+            </button>
+          )}
+          {!isGroup && <>
           <button onClick={() => startCall("audio")} disabled={!isConnected || call} title="Start voice call" className="p-2 rounded-xl hover:bg-gray-100 transition-all text-gray-400 hover:text-purple-600 disabled:opacity-40">
             <Phone className="w-5 h-5" />
           </button>
           <button onClick={() => startCall("video")} disabled={!isConnected || call} title="Start video call" className="p-2 rounded-xl hover:bg-gray-100 transition-all text-gray-400 hover:text-purple-600 disabled:opacity-40">
             <Video className="w-5 h-5" />
           </button>
+          </>}
           <button className="p-2 rounded-xl hover:bg-gray-100 transition-all text-gray-400 hover:text-gray-600">
             <Ellipsis className="w-5 h-5" />
           </button>
         </div>
       </div>
+
+      {showGroupMembers && isGroup && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/30 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between"><div><h4 className="font-bold text-gray-800">Group members</h4><p className="text-xs text-gray-500">{selectedUser.members?.length || 0} members</p></div><button onClick={() => setShowGroupMembers(false)} className="p-1 text-gray-400 hover:text-gray-700"><X className="h-5 w-5" /></button></div>
+            <div className="mt-4 max-h-72 space-y-2 overflow-y-auto">{(selectedUser.members || []).filter(Boolean).map((member) => <div key={member._id || member.id} className="flex items-center gap-3 rounded-xl p-2"><img src={member.profilePicture || member.profilePic || "/vite.svg"} alt="" className="h-9 w-9 rounded-xl object-cover" /><div className="min-w-0"><p className="truncate text-sm font-medium text-gray-700">{member.name}</p><p className="truncate text-xs text-gray-500">{member.email}</p></div></div>)}</div>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 px-6 py-5 overflow-y-auto space-y-4 bg-gray-50/50">
         {selectedMessages.length > 0 && (

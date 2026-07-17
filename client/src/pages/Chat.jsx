@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MessageCircle, User } from "lucide-react";
+import { MessageCircle, Plus, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ChatList from "../components/ChatList";
 import ChatWindow from "../components/ChatWindow";
 import UserSearch from "../components/UserSearch";
-import { getConversations, getMessageHistory, getGroupMessageHistory, getUnreadCounts, getUserProfile, uploadChatAttachment } from "../services/api";
+import CreateGroupModal from "../components/CreateGroupModal";
+import { createGroup, getConversations, getMessageHistory, getGroupMessageHistory, getUnreadCounts, getUserProfile, uploadChatAttachment } from "../services/api";
 import { useSocket } from "../hooks/useSocket";
 import { useAuthStore } from "../store/authStore";
 
@@ -27,6 +28,7 @@ const Chat = () => {
   const [totalUnread, setTotalUnread] = useState(0);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [historyError, setHistoryError] = useState("");
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
   const latestMessageIdRef = useRef("");
 
   const {
@@ -271,6 +273,17 @@ const Chat = () => {
 
   const handleDeleteMessages = (messageIds) => deleteMessages(messageIds);
 
+  const handleCreateGroup = async (groupData) => {
+    const { group, message } = await createGroup(groupData);
+    const roomId = (group._id || group.id).toString();
+    const groupUser = { ...group, type: "group", roomId };
+    setConversations((current) => [
+      { type: "group", roomId, group, lastMessage: message },
+      ...current.filter((conversation) => conversation.roomId !== roomId),
+    ]);
+    setSelectedUser(groupUser);
+  };
+
   const handleMarkMessagesAsRead = useCallback((messageIds, senderId) => {
     clearUnreadForUser(senderId?.toString());
     markMessagesAsRead(messageIds, senderId, (response) => {
@@ -310,6 +323,13 @@ const Chat = () => {
                   {totalUnread > 99 ? "99+" : totalUnread}
                 </span>
               )}
+              <button
+                onClick={() => setShowCreateGroup(true)}
+                className="p-2 rounded-xl bg-white/70 hover:bg-white text-gray-600 transition"
+                title="Create group"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
               <button
                 onClick={() => navigate("/profile")}
                 className="p-2 rounded-xl bg-white/70 hover:bg-white text-gray-600 transition"
@@ -351,6 +371,7 @@ const Chat = () => {
           conversations={conversations}
         />
       </div>
+      {showCreateGroup && <CreateGroupModal onClose={() => setShowCreateGroup(false)} onCreate={handleCreateGroup} />}
     </div>
   );
 };
