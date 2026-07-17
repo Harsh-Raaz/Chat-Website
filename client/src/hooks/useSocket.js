@@ -7,6 +7,7 @@ export const useSocket = () => {
   const [currentRoom, setCurrentRoom] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [socketErrors, setSocketErrors] = useState([]);
+  const [groupUpdates, setGroupUpdates] = useState([]);
 
   useEffect(() => {
     // Connect socket
@@ -80,6 +81,21 @@ export const useSocket = () => {
       setMessages(prev => prev.filter((msg) => !ids.has(msg._id || msg.id)));
     });
 
+    socket.on('group_members_updated', (data) => {
+      console.log('Group members updated:', data);
+      setGroupUpdates(prev => [...prev, data]);
+    });
+
+    socket.on('group_left', (data) => {
+      console.log('Left group:', data);
+      setGroupUpdates(prev => [...prev, { ...data, type: 'left' }]);
+    });
+
+    socket.on('group_removed', (data) => {
+      console.log('Removed from group:', data);
+      setGroupUpdates(prev => [...prev, { ...data, type: 'removed' }]);
+    });
+
     // Message error
     socket.on('message_error', (error) => {
       console.error('Message error:', error);
@@ -101,6 +117,9 @@ export const useSocket = () => {
       socket.off('message_delivery_confirmation');
       socket.off('messages_read');
       socket.off('messages_deleted');
+      socket.off('group_members_updated');
+      socket.off('group_left');
+      socket.off('group_removed');
       socket.off('message_error');
       socket.off('socket_error');
       socket.disconnect();
@@ -181,6 +200,8 @@ export const useSocket = () => {
     markMessagesAsRead,
     getUnreadCountsFromSocket,
     clearErrors,
+    groupUpdates,
+    setGroupUpdates,
     setCurrentUser
   };
 };

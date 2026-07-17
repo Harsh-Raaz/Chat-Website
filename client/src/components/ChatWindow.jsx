@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import EmojiPicker from "emoji-picker-react";
-import { AlertCircle, Check, CheckCheck, Clock, Ellipsis, FileText, Forward, MessageCircle, Mic, MicOff, Paperclip, Phone, PhoneOff, Send, Smile, Trash2, Users, Video, VideoOff, X } from "lucide-react";
+import { AlertCircle, Check, CheckCheck, Clock, Ellipsis, FileText, Forward, LogOut, MessageCircle, Mic, MicOff, Paperclip, Phone, PhoneOff, Send, Smile, Trash2, UserMinus, Users, Video, VideoOff, X } from "lucide-react";
 import { socket } from "../socket/socket.js";
 
 const rtcConfiguration = {
@@ -19,6 +19,8 @@ const ChatWindow = ({
   onMarkAsRead,
   isConnected,
   conversations = [],
+  onLeaveGroup,
+  onKickMember,
 }) => {
   const [message, setMessage] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
@@ -38,6 +40,8 @@ const ChatWindow = ({
   const [forwardRecipientIds, setForwardRecipientIds] = useState([]);
   const [showGroupMembers, setShowGroupMembers] = useState(false);
   const isGroup = selectedUser?.type === "group";
+  const groupCreatorId = (selectedUser?.creator || (isGroup ? selectedUser?._id : null))?.toString();
+  const isGroupCreator = isGroup && groupCreatorId && groupCreatorId === currentUserId;
 
   const cleanupCall = (notifyPeer = false) => {
     if (notifyPeer && activePeerIdRef.current) {
@@ -324,6 +328,11 @@ const ChatWindow = ({
               <Users className="w-5 h-5" />
             </button>
           )}
+          {isGroup && (
+            <button onClick={onLeaveGroup} title="Leave group" className="p-2 rounded-xl hover:bg-gray-100 transition-all text-gray-400 hover:text-red-600">
+              <LogOut className="w-5 h-5" />
+            </button>
+          )}
           {!isGroup && <>
           <button onClick={() => startCall("audio")} disabled={!isConnected || call} title="Start voice call" className="p-2 rounded-xl hover:bg-gray-100 transition-all text-gray-400 hover:text-purple-600 disabled:opacity-40">
             <Phone className="w-5 h-5" />
@@ -342,7 +351,25 @@ const ChatWindow = ({
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/30 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
             <div className="flex items-center justify-between"><div><h4 className="font-bold text-gray-800">Group members</h4><p className="text-xs text-gray-500">{selectedUser.members?.length || 0} members</p></div><button onClick={() => setShowGroupMembers(false)} className="p-1 text-gray-400 hover:text-gray-700"><X className="h-5 w-5" /></button></div>
-            <div className="mt-4 max-h-72 space-y-2 overflow-y-auto">{(selectedUser.members || []).filter(Boolean).map((member) => <div key={member._id || member.id} className="flex items-center gap-3 rounded-xl p-2"><img src={member.profilePicture || member.profilePic || "/vite.svg"} alt="" className="h-9 w-9 rounded-xl object-cover" /><div className="min-w-0"><p className="truncate text-sm font-medium text-gray-700">{member.name}</p><p className="truncate text-xs text-gray-500">{member.email}</p></div></div>)}</div>
+            <div className="mt-4 max-h-72 space-y-2 overflow-y-auto">{(selectedUser.members || []).filter(Boolean).map((member) => {
+              const memberId = (member._id || member.id)?.toString();
+              const isMemberCreator = memberId && memberId === groupCreatorId;
+              const canKick = isGroupCreator && memberId && memberId !== currentUserId;
+              return (
+                <div key={memberId} className="flex items-center gap-3 rounded-xl p-2">
+                  <img src={member.profilePicture || member.profilePic || "/vite.svg"} alt="" className="h-9 w-9 rounded-xl object-cover" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-gray-700">{member.name}</p>
+                    <p className="truncate text-xs text-gray-500">{isMemberCreator ? "Creator" : member.email}</p>
+                  </div>
+                  {canKick && (
+                    <button onClick={() => onKickMember?.(memberId)} title="Remove from group" className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition">
+                      <UserMinus className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}</div>
           </div>
         </div>
       )}

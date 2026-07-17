@@ -35,6 +35,16 @@ export const createGroup = async (group) => {
   return data;
 };
 
+export const leaveGroup = async (groupId) => {
+  const { data } = await api.post(`/groups/${groupId}/leave`);
+  return data;
+};
+
+export const removeGroupMember = async (groupId, memberId) => {
+  const { data } = await api.post(`/groups/${groupId}/members/${memberId}/remove`);
+  return data;
+};
+
 export const getConversationMessages = async (userId, params = {}) => {
   const { data } = await api.get(`/messages/conversation/${userId}`, { params });
   return data.messages || [];

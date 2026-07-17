@@ -5,7 +5,7 @@ import ChatList from "../components/ChatList";
 import ChatWindow from "../components/ChatWindow";
 import UserSearch from "../components/UserSearch";
 import CreateGroupModal from "../components/CreateGroupModal";
-import { createGroup, getConversations, getMessageHistory, getGroupMessageHistory, getUnreadCounts, getUserProfile, uploadChatAttachment } from "../services/api";
+import { createGroup, getConversations, getMessageHistory, getGroupMessageHistory, getUnreadCounts, getUserProfile, uploadChatAttachment, leaveGroup, removeGroupMember } from "../services/api";
 import { useSocket } from "../hooks/useSocket";
 import { useAuthStore } from "../store/authStore";
 
@@ -42,6 +42,8 @@ const Chat = () => {
     socketErrors,
     clearErrors,
     joinRoom,
+    groupUpdates,
+    setGroupUpdates,
   } = useSocket();
 
   const selectedUserId = getUserId(selectedUser);
@@ -273,6 +275,63 @@ const Chat = () => {
 
   const handleDeleteMessages = (messageIds) => deleteMessages(messageIds);
 
+  useEffect(() => {
+    if (!groupUpdates.length) return;
+
+    groupUpdates.forEach((update) => {
+      const groupId = (update.groupId || "").toString();
+
+      if (update.type === "left" || update.type === "removed") {
+        setConversations((current) => current.filter((conversation) => conversation.roomId !== groupId));
+        setSelectedUser((current) => {
+          if (current?.type === "group" && current.roomId === groupId) return null;
+          return current;
+        });
+        return;
+      }
+
+      const isCreator = update.creator ? update.creator.toString() === currentUserId : false;
+      setConversations((current) =>
+        current.map((conversation) => {
+          if (conversation.roomId !== groupId) return conversation;
+          const nextGroup = { ...(conversation.group || {}), creator: update.creator, members: update.members };
+          return { ...conversation, group: nextGroup };
+        })
+      );
+      setSelectedUser((current) => {
+        if (current?.type !== "group" || current.roomId !== groupId) return current;
+        const updatedMembers = (current.members || []).filter((member) =>
+          update.members.includes((member._id || member.id)?.toString())
+        );
+        return { ...current, creator: update.creator, members: updatedMembers, isCreator };
+      });
+    });
+
+    setGroupUpdates([]);
+  }, [groupUpdates, setGroupUpdates, currentUserId]);
+
+  const handleLeaveGroup = async () => {
+    if (!selectedUser?.roomId) return;
+    if (!window.confirm("Leave this group? You will no longer receive its messages.")) return;
+    try {
+      await leaveGroup(selectedUser.roomId);
+      setConversations((current) => current.filter((conversation) => conversation.roomId !== selectedUser.roomId));
+      setSelectedUser(null);
+    } catch (error) {
+      setHistoryError(error.response?.data?.message || "Could not leave group");
+    }
+  };
+
+  const handleKickMember = async (memberId) => {
+    if (!selectedUser?.roomId) return;
+    if (!window.confirm("Remove this member from the group?")) return;
+    try {
+      await removeGroupMember(selectedUser.roomId, memberId);
+    } catch (error) {
+      setHistoryError(error.response?.data?.message || "Could not remove member");
+    }
+  };
+
   const handleCreateGroup = async (groupData) => {
     const { group, message } = await createGroup(groupData);
     const roomId = (group._id || group.id).toString();
@@ -369,6 +428,8 @@ const Chat = () => {
           onMarkAsRead={handleMarkMessagesAsRead}
           isConnected={isConnected}
           conversations={conversations}
+          onLeaveGroup={handleLeaveGroup}
+          onKickMember={handleKickMember}
         />
       </div>
       {showCreateGroup && <CreateGroupModal onClose={() => setShowCreateGroup(false)} onCreate={handleCreateGroup} />}
