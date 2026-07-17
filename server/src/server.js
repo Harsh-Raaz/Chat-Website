@@ -17,7 +17,7 @@ dotenv.config();
 const app = express();
 
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: "https://chat-website-nine-sigma.vercel.app",
   credentials: true,
 }));
 app.use(express.json());
@@ -42,13 +42,13 @@ app.use((err, req, res, next) => {
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: "https://chat-website-nine-sigma.vercel.app",
     methods: ["GET", "POST"],
     credentials: true,
   },
 });
 app.set("io", io);
-console.log("MONGODB_URI =", process.env.MONGODB_URI);
+
 io.use(socketAuth);
 initializeSocket(io);
 
