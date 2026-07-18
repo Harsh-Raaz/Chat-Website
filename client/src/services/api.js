@@ -40,6 +40,11 @@ export const leaveGroup = async (groupId) => {
   return data;
 };
 
+export const dismissGroup = async (groupId) => {
+  const { data } = await api.delete(`/groups/${groupId}`);
+  return data;
+};
+
 export const removeGroupMember = async (groupId, memberId) => {
   const { data } = await api.post(`/groups/${groupId}/members/${memberId}/remove`);
   return data;

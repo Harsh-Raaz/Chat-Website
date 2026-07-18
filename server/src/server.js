@@ -17,7 +17,7 @@ dotenv.config();
 const app = express();
 
 app.use(cors({
-  origin: "https://chat-website-nine-sigma.vercel.app",
+ origin: "https://chat-website-nine-sigma.vercel.app",
   credentials: true,
 }));
 app.use(express.json());

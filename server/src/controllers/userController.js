@@ -274,6 +274,7 @@ export const getConversations = async (req, res) => {
             id: group._id,
             name: group.name,
             avatar: group.avatar || "",
+            creator: group.creator,
             members: group.members.filter(Boolean).map(formatUser),
           },
           lastMessage: formatMessage(message),

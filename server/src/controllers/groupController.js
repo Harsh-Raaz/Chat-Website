@@ -71,6 +71,44 @@ export const leaveGroup = async (req, res) => {
   }
 };
 
+export const dismissGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
+      return res.status(400).json({ success: false, message: "Invalid group ID." });
+    }
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ success: false, message: "Group not found." });
+    }
+
+    const requesterId = req.user._id.toString();
+    if (group.creator.toString() !== requesterId) {
+      return res.status(403).json({ success: false, message: "Only the group creator can dismiss this group." });
+    }
+
+    const memberIds = group.members.map((member) => member.toString());
+    await Promise.all([
+      Message.deleteMany({ roomId: group._id.toString() }),
+      Group.deleteOne({ _id: group._id }),
+    ]);
+
+    const io = req.app.get("io");
+    io.in(group._id.toString()).socketsLeave(group._id.toString());
+    memberIds.forEach((memberId) => {
+      io.to(`user_${memberId}`).emit("group_dismissed", {
+        groupId: group._id.toString(),
+        dismissedBy: requesterId,
+      });
+    });
+
+    return res.status(200).json({ success: true, groupId: group._id.toString() });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const kickFromGroup = async (req, res) => {
   try {
     const { groupId, memberId } = req.params;

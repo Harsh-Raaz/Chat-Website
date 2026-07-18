@@ -96,6 +96,11 @@ export const useSocket = () => {
       setGroupUpdates(prev => [...prev, { ...data, type: 'removed' }]);
     });
 
+    socket.on('group_dismissed', (data) => {
+      console.log('Group dismissed:', data);
+      setGroupUpdates(prev => [...prev, { ...data, type: 'dismissed' }]);
+    });
+
     // Message error
     socket.on('message_error', (error) => {
       console.error('Message error:', error);
@@ -120,6 +125,7 @@ export const useSocket = () => {
       socket.off('group_members_updated');
       socket.off('group_left');
       socket.off('group_removed');
+      socket.off('group_dismissed');
       socket.off('message_error');
       socket.off('socket_error');
       socket.disconnect();

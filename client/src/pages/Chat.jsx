@@ -5,7 +5,7 @@ import ChatList from "../components/ChatList";
 import ChatWindow from "../components/ChatWindow";
 import UserSearch from "../components/UserSearch";
 import CreateGroupModal from "../components/CreateGroupModal";
-import { createGroup, getConversations, getMessageHistory, getGroupMessageHistory, getUnreadCounts, getUserProfile, uploadChatAttachment, leaveGroup, removeGroupMember } from "../services/api";
+import { createGroup, dismissGroup, getConversations, getMessageHistory, getGroupMessageHistory, getUnreadCounts, getUserProfile, uploadChatAttachment, leaveGroup, removeGroupMember } from "../services/api";
 import { useSocket } from "../hooks/useSocket";
 import { useAuthStore } from "../store/authStore";
 
@@ -281,7 +281,7 @@ const Chat = () => {
     groupUpdates.forEach((update) => {
       const groupId = (update.groupId || "").toString();
 
-      if (update.type === "left" || update.type === "removed") {
+      if (update.type === "left" || update.type === "removed" || update.type === "dismissed") {
         setConversations((current) => current.filter((conversation) => conversation.roomId !== groupId));
         setSelectedUser((current) => {
           if (current?.type === "group" && current.roomId === groupId) return null;
@@ -329,6 +329,18 @@ const Chat = () => {
       await removeGroupMember(selectedUser.roomId, memberId);
     } catch (error) {
       setHistoryError(error.response?.data?.message || "Could not remove member");
+    }
+  };
+
+  const handleDismissGroup = async () => {
+    if (!selectedUser?.roomId) return;
+    if (!window.confirm("Dismiss this group for everyone? All members and group messages will be permanently removed.")) return;
+    try {
+      await dismissGroup(selectedUser.roomId);
+      setConversations((current) => current.filter((conversation) => conversation.roomId !== selectedUser.roomId));
+      setSelectedUser(null);
+    } catch (error) {
+      setHistoryError(error.response?.data?.message || "Could not dismiss group");
     }
   };
 
@@ -429,6 +441,7 @@ const Chat = () => {
           isConnected={isConnected}
           conversations={conversations}
           onLeaveGroup={handleLeaveGroup}
+          onDismissGroup={handleDismissGroup}
           onKickMember={handleKickMember}
         />
       </div>

@@ -4,7 +4,31 @@ import { AlertCircle, Check, CheckCheck, Clock, Ellipsis, FileText, Forward, Log
 import { socket } from "../socket/socket.js";
 
 const rtcConfiguration = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  iceServers: [
+    {
+      urls: "stun:stun.relay.metered.ca:80",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:80",
+      username: "7bf1446144ab03454229b944",
+      credential: "G2OLVL7119XKlxkz",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:80?transport=tcp",
+      username: "7bf1446144ab03454229b944",
+      credential: "G2OLVL7119XKlxkz",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:443",
+      username: "7bf1446144ab03454229b944",
+      credential: "G2OLVL7119XKlxkz",
+    },
+    {
+      urls: "turns:global.relay.metered.ca:443?transport=tcp",
+      username: "7bf1446144ab03454229b944",
+      credential: "G2OLVL7119XKlxkz",
+    },
+  ],
 };
 
 const ChatWindow = ({
@@ -20,6 +44,7 @@ const ChatWindow = ({
   isConnected,
   conversations = [],
   onLeaveGroup,
+  onDismissGroup,
   onKickMember,
 }) => {
   const [message, setMessage] = useState("");
@@ -328,9 +353,14 @@ const ChatWindow = ({
               <Users className="w-5 h-5" />
             </button>
           )}
-          {isGroup && (
+          {isGroup && !isGroupCreator && (
             <button onClick={onLeaveGroup} title="Leave group" className="p-2 rounded-xl hover:bg-gray-100 transition-all text-gray-400 hover:text-red-600">
               <LogOut className="w-5 h-5" />
+            </button>
+          )}
+          {isGroup && isGroupCreator && (
+            <button onClick={onDismissGroup} title="Dismiss group for everyone" className="p-2 rounded-xl hover:bg-red-50 transition-all text-gray-400 hover:text-red-600">
+              <Trash2 className="w-5 h-5" />
             </button>
           )}
           {!isGroup && <>
